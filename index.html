@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>다문화 학생 상담 지원 프로그램</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 25px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            min-height: 600px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            color: #2d3436;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+        }
+
+        h2 {
+            color: #636e72;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+
+        /* 언어 선택 화면 */
+        .language-options {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+
+        .language-btn {
+            background: white;
+            border: 3px solid #ddd;
+            border-radius: 20px;
+            padding: 30px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            min-width: 180px;
+        }
+
+        .language-btn:hover {
+            transform: translateY(-10px);
+            border-color: #74b9ff;
+            box-shadow: 0 15px 40px rgba(116, 185, 255, 0.3);
+        }
+
+        .flag {
+            width: 80px;
+            height: 60px;
+            margin: 0 auto 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            border: 2px solid #ddd;
+        }
+
+        .flag.korea { background: linear-gradient(to bottom, #ffffff 25%, #cd2e3a 25%, #cd2e3a 50%, #ffffff 50%, #ffffff 75%, #0047a0 75%); }
+        .flag.russia { background: linear-gradient(to bottom, #ffffff 33%, #0039a6 33%, #0039a6 66%, #d52b1e 66%); }
+        .flag.vietnam { background: linear-gradient(to bottom, #da020e 50%, #da020e 50%); position: relative; }
+        .flag.vietnam::after { content: '⭐'; position: absolute; color: #ffff00; font-size: 25px; }
+
+        .language-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2d3436;
+        }
+
+        /* 이름 선택 화면 */
+        .name-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .name-btn {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border: none;
+            border-radius: 15px;
+            padding: 25px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .name-btn:hover {
+            transform: translateY(-5px);
+            background: linear-gradient(145deg, #74b9ff, #0984e3);
+            color: white;
+            box-shadow: 0 10px 25px rgba(116, 185, 255, 0.4);
+        }
+
+        .student-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* 기분 선택 화면 */
+        .mood-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .mood-btn {
+            background: white;
+            border: 3px solid #ddd;
+            border-radius: 20px;
+            padding: 20px 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .mood-btn:hover {
+            transform: scale(1.1);
+            border-color: #74b9ff;
+            box-shadow: 0 10px 25px rgba(116, 185, 255, 0.3);
+        }
+
+        .mood-emoji {
+            font-size: 50px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .mood-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #636e72;
+        }
+
+        /* 녹음 화면 */
+        .recording-area {
+            margin: 40px 0;
+        }
+
+        .record-btn {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(145deg, #ff6b6b, #ee5a52);
+            color: white;
+            font-size: 4em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.3);
+            margin: 20px auto;
+            display: block;
+        }
+
+        .record-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 20px 50px rgba(255, 107, 107, 0.4);
+        }
+
+        .record-btn.recording {
+            background: linear-gradient(145deg, #00b894, #00a085);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .recording-status {
+            font-size: 24px;
+            margin: 20px 0;
+            color: #636e72;
+            min-height: 30px;
+        }
+
+        .recording-status.recording {
+            color: #00b894;
+            font-weight: bold;
+        }
+
+        .timer {
+            font-size: 36px;
+            font-weight: bold;
+            color: #2d3436;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .controls {
+            margin: 30px 0;
+        }
+
+        .btn {
+            background: linear-gradient(145deg, #74b9ff, #0984e3);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(116, 185, 255, 0.3);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(116, 185, 255, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn.next {
+            background: linear-gradient(145deg, #00b894, #00a085);
+            box-shadow: 0 5px 15px rgba(0, 184, 148, 0.3);
+        }
+
+        .btn.next:hover {
+            box-shadow: 0 8px 25px rgba(0, 184, 148, 0.4);
+        }
+
+        .btn.back {
+            background: linear-gradient(145deg, #636e72, #495057);
+            box-shadow: 0 5px 15px rgba(99, 110, 114, 0.3);
+        }
+
+        .btn.back:hover {
+            box-shadow: 0 8px 25px rgba(99, 110, 114, 0.4);
+        }
+
+        /* 결과 화면 */
+        .result-area {
+            text-align: left;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+
+        .student-info {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 5px solid #2196f3;
+        }
+
+        .transcript-area {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+        }
+
+        .transcript-label {
+            font-weight: bold;
+            color: #636e72;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .transcript-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #2d3436;
+            min-height: 40px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+
+        .hidden { display: none; }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            .container { padding: 20px; }
+            h1 { font-size: 2em; }
+            h2 { font-size: 1.5em; }
+            .language-options { gap: 20px; }
+            .language-btn { min-width: 150px; padding: 20px 15px; }
+            .record-btn { width: 120px; height: 120px; font-size: 3em; }
+            .mood-options { grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 1단계: 언어 선택 화면 -->
+        <div id="languageScreen" class="screen active">
+            <h1>🌍 언어를 선택해주세요</h1>
+            <h2>Please choose your language</h2>
+            
+            <div class="language-options">
+                <div class="language-btn" onclick="selectLanguage('ko')">
+                    <div class="flag korea"></div>
+                    <div class="language-name">한국어</div>
+                </div>
+                <div class="language-btn" onclick="selectLanguage('ru')">
+                    <div class="flag russia"></div>
+                    <div class="language-name">Русский</div>
+                </div>
+                <div class="language-btn" onclick="selectLanguage('vi')">
+                    <div class="flag vietnam"></div>
+                    <div class="language-name">Tiếng Việt</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2단계: 이름 선택 화면 -->
+        <div id="nameScreen" class="screen">
+            <h1 id="nameTitle">👦 이름을 선택해주세요</h1>
+            
+            <div class="name-options">
+                <button class="name-btn" onclick="selectName('리마크')">
+                    <span class="student-icon">👦</span>
+                    리마크
+                </button>
+                <button class="name-btn" onclick="selectName('누엔티성우')">
+                    <span class="student-icon">👦</span>
+                    누엔티성우
+                </button>
+                <button class="name-btn" onclick="selectName('정시율')">
+                    <span class="student-icon">👦</span>
+                    정시율
+                </button>
+                <button class="name-btn" onclick="selectName('조용원')">
+                    <span class="student-icon">👦</span>
+                    조용원
+                </button>
+            </div>
+            
+            <button class="btn back" onclick="goBack()">← 이전</button>
+        </div>
+
+        <!-- 3단계: 기분 선택 화면 -->
+        <div id="moodScreen" class="screen">
+            <h1 id="moodTitle">😊 오늘 기분은 어떤가요?</h1>
+            
+            <div class="mood-options">
+                <div class="mood-btn" onclick="selectMood('매우 좋음', '😄')">
+                    <span class="mood-emoji">😄</span>
+                    <div class="mood-text" id="mood1">매우 좋음</div>
+                </div>
+                <div class="mood-btn" onclick="selectMood('좋음', '😊')">
+                    <span class="mood-emoji">😊</span>
+                    <div class="mood-text" id="mood2">좋음</div>
+                </div>
+                <div class="mood-btn" onclick="selectMood('보통', '😐')">
+                    <span class="mood-emoji">😐</span>
+                    <div class="mood-text" id="mood3">보통</div>
+                </div>
+                <div class="mood-btn" onclick="selectMood('슬픔', '😢')">
+                    <span class="mood-emoji">😢</span>
+                    <div class="mood-text" id="mood4">슬픔</div>
+                </div>
+                <div class="mood-btn" onclick="selectMood('화남', '😠')">
+                    <span class="mood-emoji">😠</span>
+                    <div class="mood-text" id="mood5">화남</div>
+                </div>
+                <div class="mood-btn" onclick="selectMood('무서움', '😨')">
+                    <span class="mood-emoji">😨</span>
+                    <div class="mood-text" id="mood6">무서움</div>
+                </div>
+            </div>
+            
+            <button class="btn back" onclick="goBack()">← 이전</button>
+        </div>
+
+        <!-- 4단계: 녹음 화면 -->
+        <div id="recordingScreen" class="screen">
+            <h1 id="recordTitle">🎤 이야기를 들려주세요</h1>
+            
+            <div id="messages"></div>
+            
+            <div class="recording-area">
+                <button id="recordBtn" class="record-btn">🎤</button>
+                <div id="recordingStatus" class="recording-status">마이크 버튼을 눌러 이야기해주세요</div>
+                <div id="timer" class="timer">00:00</div>
+            </div>
+            
+            <div class="controls">
+                <button id="stopBtn" class="btn" disabled>정지</button>
+                <button id="clearBtn" class="btn" disabled>다시 녹음</button>
+                <button id="finishBtn" class="btn next hidden" onclick="finishRecording()">이야기 완료</button>
+                <button class="btn back" onclick="goBack()">← 이전</button>
+            </div>
+            
+            <audio id="audioPlayer" controls class="hidden"></audio>
+        </div>
+
+        <!-- 5단계: 결과 화면 (교사용) -->
+        <div id="resultScreen" class="screen">
+            <h1>📋 상담 기록</h1>
+            
+            <div class="result-area">
+                <div class="student-info">
+                    <h3>학생 정보</h3>
+                    <p><strong>이름:</strong> <span id="resultName">-</span></p>
+                    <p><strong>언어:</strong> <span id="resultLanguage">-</span></p>
+                    <p><strong>기분:</strong> <span id="resultMood">-</span></p>
+                    <p><strong>날짜:</strong> <span id="resultDate">-</span></p>
+                </div>
+                
+                <div class="transcript-area">
+                    <div class="transcript-label">원본 음성 (학생 언어)</div>
+                    <div class="transcript-text" id="originalTranscript">음성을 텍스트로 변환 중...</div>
+                </div>
+                
+                <div class="transcript-area">
+                    <div class="transcript-label">한국어 번역</div>
+                    <div class="transcript-text" id="translatedTranscript">한국어로 번역 중...</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" onclick="saveRecord()">📄 기록 저장</button>
+                <button class="btn" onclick="printRecord()">🖨️ 인쇄</button>
+                <button class="btn next" onclick="startNew()">새로운 상담 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let currentScreen = 1;
+        let selectedLanguage = '';
+        let selectedName = '';
+        let selectedMood = '';
+        let selectedMoodEmoji = '';
+        
+        // 녹음 관련 변수 (기존 코드 활용)
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let startTime = 0;
+        let timerInterval = null;
+        let currentAudioBlob = null;
+
+        // 다국어 텍스트
+        const texts = {
+            ko: {
+                nameTitle: '👦 이름을 선택해주세요',
+                moodTitle: '😊 오늘 기분은 어떤가요?',
+                recordTitle: '🎤 이야기를 들려주세요',
+                mood1: '매우 좋음', mood2: '좋음', mood3: '보통',
+                mood4: '슬픔', mood5: '화남', mood6: '무서움',
+                recordingMsg: '마이크 버튼을 눌러 이야기해주세요'
+            },
+            ru: {
+                nameTitle: '👦 Выберите ваше имя',
+                moodTitle: '😊 Как ваше настроение сегодня?',
+                recordTitle: '🎤 Расскажите вашу историю',
+                mood1: 'Очень хорошо', mood2: 'Хорошо', mood3: 'Нормально',
+                mood4: 'Грустно', mood5: 'Сердито', mood6: 'Страшно',
+                recordingMsg: 'Нажмите на микрофон и расскажите'
+            },
+            vi: {
+                nameTitle: '👦 Chọn tên của bạn',
+                moodTitle: '😊 Hôm nay bạn cảm thấy thế nào?',
+                recordTitle: '🎤 Hãy kể câu chuyện của bạn',
+                mood1: 'Rất vui', mood2: 'Vui', mood3: 'Bình thường',
+                mood4: 'Buồn', mood5: 'Giận', mood6: 'Sợ',
+                recordingMsg: 'Nhấn nút mic và kể chuyện'
+            }
+        };
+
+        // DOM 요소
+        const recordBtn = document.getElementById('recordBtn');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const timer = document.getElementById('timer');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const finishBtn = document.getElementById('finishBtn');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const messages = document.getElementById('messages');
+
+        // 언어 선택
+        function selectLanguage(lang) {
+            selectedLanguage = lang;
+            updateTexts(lang);
+            showScreen(2);
+        }
+
+        // 텍스트 업데이트
+        function updateTexts(lang) {
+            document.getElementById('nameTitle').textContent = texts[lang].nameTitle;
+            document.getElementById('moodTitle').textContent = texts[lang].moodTitle;
+            document.getElementById('recordTitle').textContent = texts[lang].recordTitle;
+            document.getElementById('recordingStatus').textContent = texts[lang].recordingMsg;
+            
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById('mood' + i).textContent = texts[lang]['mood' + i];
+            }
+        }
+
+        // 이름 선택
+        function selectName(name) {
+            selectedName = name;
+            showScreen(3);
+        }
+
+        // 기분 선택
+        function selectMood(mood, emoji) {
+            selectedMood = mood;
+            selectedMoodEmoji = emoji;
+            showScreen(4);
+        }
+
+        // 화면 전환
+        function showScreen(screenNum) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            const screens = ['', 'languageScreen', 'nameScreen', 'moodScreen', 'recordingScreen', 'resultScreen'];
+            document.getElementById(screens[screenNum]).classList.add('active');
+            currentScreen = screenNum;
+        }
+
+        // 이전 화면
+        function goBack() {
+            if (currentScreen > 1) {
+                showScreen(currentScreen - 1);
+            }
+        }
+
+        // 메시지 표시
+        function showMessage(text, type = 'info') {
+            messages.innerHTML = `<div class="message ${type}">${text}</div>`;
+        }
+
+        function clearMessages() {
+            messages.innerHTML = '';
+        }
+
+        // 타이머 기능 (기존 코드 활용)
+        function updateTimer() {
+            if (isRecording) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                timer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        // 녹음 기능 (기존 코드 활용)
+        recordBtn.addEventListener('click', async function() {
+            if (!isRecording) {
+                try {
+                    clearMessages();
+                    showMessage('마이크 권한을 요청하고 있습니다...', 'info');
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = function(event) {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = function() {
+                        processRecording();
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    mediaRecorder.start(1000);
+                    isRecording = true;
+                    
+                    recordBtn.textContent = '⏹️';
+                    recordBtn.classList.add('recording');
+                    recordingStatus.textContent = '녹음 중... (다시 클릭하면 정지)';
+                    recordingStatus.classList.add('recording');
+                    stopBtn.disabled = false;
+                    
+                    startTimer();
+                    showMessage('✅ 녹음이 시작되었습니다!', 'success');
+                    
+                } catch (error) {
+                    if (error.name === 'NotAllowedError') {
+                        showMessage('❌ 마이크 권한이 필요합니다!', 'error');
+                    } else {
+                        showMessage('❌ 마이크 오류: ' + error.message, 'error');
+                    }
+                }
+            } else {
+                stopRecording();
+            }
+        });
+
+        stopBtn.addEventListener('click', stopRecording);
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                recordBtn.textContent = '🎤';
+                recordBtn.classList.remove('recording');
+                recordingStatus.textContent = '녹음이 완료되었습니다!';
+                recordingStatus.classList.remove('recording');
+                stopBtn.disabled = true;
+                
+                stopTimer();
+            }
+        }
+
+        function processRecording() {
+            if (audioChunks.length === 0) {
+                showMessage('❌ 녹음된 데이터가 없습니다!', 'error');
+                return;
+            }
+
+            try {
+                currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioUrl = URL.createObjectURL(currentAudioBlob);
+                
+                audioPlayer.src = audioUrl;
+                audioPlayer.classList.remove('hidden');
+                clearBtn.disabled = false;
+                finishBtn.classList.remove('hidden');
+
+                showMessage(`🎉 녹음 완료! 크기: ${(currentAudioBlob.size / 1024).toFixed(1)}KB`, 'success');
+
+            } catch (error) {
+                showMessage('❌ 녹음 처리 오류: ' + error.message, 'error');
+            }
+        }
+
+        clearBtn.addEventListener('click', function() {
+            audioChunks = [];
+            currentAudioBlob = null;
+            audioPlayer.src = '';
+            audioPlayer.classList.add('hidden');
+            finishBtn.classList.add('hidden');
+            timer.textContent = '00:00';
+            recordingStatus.textContent = texts[selectedLanguage].recordingMsg;
+            clearBtn.disabled = true;
+            clearMessages();
+        });
+
+        // 녹음 완료
+        function finishRecording() {
+            if (!currentAudioBlob) {
+                showMessage('❌ 녹음된 파일이 없습니다!', 'error');
+                return;
+            }
+            
+            // 결과 화면으로 이동
+            showScreen(5);
+            displayResults();
+        }
+
+        // 결과 표시
+        function displayResults() {
+            document.getElementById('resultName').textContent = selectedName;
+            document.getElementById('resultLanguage').textContent = getLanguageName(selectedLanguage);
+            document.getElementById('resultMood').textContent = selectedMoodEmoji + ' ' + selectedMood;
+            document.getElementById('resultDate').textContent = new Date().toLocaleString('ko-KR');
+            
+            // 음성 인식 시뮬레이션 (실제로는 Web Speech API나 외부 API 사용)
+            simulateTranscription();
+        }
+
+        function getLanguageName(code) {
+            const names = { ko: '한국어', ru: '러시아어', vi: '베트남어' };
+            return names[code] || code;
+        }
+
+        // 음성 인식 시뮬레이션
+        function simulateTranscription() {
+            // 실제 구현에서는 Web Speech API나 Google Speech-to-Text API 사용
+            setTimeout(() => {
+                const sampleTexts = {
+                    ko: '오늘 학교에서 친구들과 재미있게 놀았어요. 수학 시간이 조금 어려웠지만 선생님이 도와주셔서 좋았어요.',
+                    ru: 'Сегодня в школе я играл с друзьями. Урок математики был немного трудный, но учитель помог мне.',
+                    vi: 'Hôm nay ở trường tôi chơi với bạn bè rất vui. Tiết toán hơi khó nhưng cô giáo đã giúp tôi.'
+                };
+                
+                const translatedTexts = {
+                    ko: '오늘 학교에서 친구들과 재미있게 놀았어요. 수학 시간이 조금 어려웠지만 선생님이 도와주셔서 좋았어요.',
+                    ru: '오늘 학교에서 친구들과 놀았습니다. 수학 수업이 조금 어려웠지만 선생님이 도와주었습니다.',
+                    vi: '오늘 학교에서 친구들과 재미있게 놀았습니다. 수학 시간이 조금 어려웠지만 선생님이 도와주셔서 좋았습니다.'
+                };
+                
+                document.getElementById('originalTranscript').textContent = sampleTexts[selectedLanguage];
+                document.getElementById('translatedTranscript').textContent = translatedTexts[selectedLanguage];
+                
+            }, 2000);
+        }
+
+        // 기록 저장
+        function saveRecord() {
+            try {
+                const record = {
+                    id: Date.now(),
+                    name: selectedName,
+                    language: selectedLanguage,
+                    mood: selectedMood,
+                    moodEmoji: selectedMoodEmoji,
+                    date: new Date().toLocaleString('ko-KR'),
+                    originalText: document.getElementById('originalTranscript').textContent,
+                    translatedText: document.getElementById('translatedTranscript').textContent,
+                    audioSize: currentAudioBlob ? (currentAudioBlob.size / 1024).toFixed(1) + 'KB' : '0KB'
+                };
+                
+                // localStorage에 저장
+                const existingRecords = JSON.parse(localStorage.getItem('counselingRecords') || '[]');
+                existingRecords.push(record);
+                localStorage.setItem('counselingRecords', JSON.stringify(existingRecords));
+                
+                // 음성 파일도 저장 (기존 코드 활용)
+                if (currentAudioBlob) {
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const audioRecord = {
+                            id: record.id,
+                            name: selectedName,
+                            date: record.date,
+                            data: reader.result
+                        };
+                        
+                        const existingAudio = JSON.parse(localStorage.getItem('counselingAudio') || '[]');
+                        existingAudio.push(audioRecord);
+                        localStorage.setItem('counselingAudio', JSON.stringify(existingAudio));
+                    };
+                    reader.readAsDataURL(currentAudioBlob);
+                }
+                
+                alert('✅ 상담 기록이 저장되었습니다!');
+                
+            } catch (error) {
+                alert('❌ 저장 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // 인쇄
+        function printRecord() {
+            const printContent = `
+                <h2>다문화 학생 상담 기록</h2>
+                <hr>
+                <p><strong>학생 이름:</strong> ${selectedName}</p>
+                <p><strong>사용 언어:</strong> ${getLanguageName(selectedLanguage)}</p>
+                <p><strong>기분 상태:</strong> ${selectedMoodEmoji} ${selectedMood}</p>
+                <p><strong>상담 날짜:</strong> ${new Date().toLocaleString('ko-KR')}</p>
+                <hr>
+                <h3>원본 내용 (${getLanguageName(selectedLanguage)})</h3>
+                <p>${document.getElementById('originalTranscript').textContent}</p>
+                <h3>한국어 번역</h3>
+                <p>${document.getElementById('translatedTranscript').textContent}</p>
+                <hr>
+                <p><small>담임교사: _________________ (서명)</small></p>
+            `;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>상담 기록 - ${selectedName}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        h2 { color: #2d3436; }
+                        h3 { color: #636e72; margin-top: 20px; }
+                        p { line-height: 1.6; }
+                        hr { margin: 20px 0; }
+                    </style>
+                </head>
+                <body>${printContent}</body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        // 새로운 상담 시작
+        function startNew() {
+            // 변수 초기화
+            selectedLanguage = '';
+            selectedName = '';
+            selectedMood = '';
+            selectedMoodEmoji = '';
+            
+            // 녹음 관련 초기화
+            audioChunks = [];
+            currentAudioBlob = null;
+            audioPlayer.src = '';
+            audioPlayer.classList.add('hidden');
+            finishBtn.classList.add('hidden');
+            timer.textContent = '00:00';
+            clearBtn.disabled = true;
+            stopBtn.disabled = true;
+            
+            // 버튼 상태 초기화
+            recordBtn.textContent = '🎤';
+            recordBtn.classList.remove('recording');
+            recordingStatus.classList.remove('recording');
+            
+            clearMessages();
+            
+            // 첫 화면으로 이동
+            showScreen(1);
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', function() {
+            console.log('다문화 학생 상담 프로그램 시작');
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('❌ 이 브라우저는 음성 녹음을 지원하지 않습니다!');
+            } else if (!window.isSecureContext) {
+                alert('❌ HTTPS 환경이 필요합니다!');
+            } else {
+                console.log('✅ 모든 기능 준비 완료');
+            }
+        });
+
+        // 키보드 단축키 (교사용)
+        document.addEventListener('keydown', function(event) {
+            // Ctrl + S: 저장
+            if (event.ctrlKey && event.key === 's') {
+                event.preventDefault();
+                if (currentScreen === 5) {
+                    saveRecord();
+                }
+            }
+            
+            // Ctrl + P: 인쇄
+            if (event.ctrlKey && event.key === 'p') {
+                event.preventDefault();
+                if (currentScreen === 5) {
+                    printRecord();
+                }
+            }
+            
+            // Ctrl + N: 새 상담
+            if (event.ctrlKey && event.key === 'n') {
+                event.preventDefault();
+                startNew();
+            }
+        });
+
+        // 저장된 기록 보기 함수 (추가 기능)
+        function viewSavedRecords() {
+            const records = JSON.parse(localStorage.getItem('counselingRecords') || '[]');
+            
+            if (records.length === 0) {
+                alert('저장된 상담 기록이 없습니다.');
+                return;
+            }
+            
+            let recordList = '📋 저장된 상담 기록 목록:\n\n';
+            records.slice(-10).reverse().forEach((record, index) => {
+                recordList += `${index + 1}. ${record.name} (${record.date})\n`;
+                recordList += `   언어: ${getLanguageName(record.language)} | 기분: ${record.moodEmoji} ${record.mood}\n`;
+                recordList += `   내용: ${record.translatedText.substring(0, 50)}...\n\n`;
+            });
+            
+            alert(recordList);
+        }
+
+        // 통계 보기 함수 (추가 기능)
+        function viewStatistics() {
+            const records = JSON.parse(localStorage.getItem('counselingRecords') || '[]');
+            
+            if (records.length === 0) {
+                alert('저장된 상담 기록이 없습니다.');
+                return;
+            }
+            
+            // 언어별 통계
+            const languageStats = {};
+            const moodStats = {};
+            const studentStats = {};
+            
+            records.forEach(record => {
+                languageStats[record.language] = (languageStats[record.language] || 0) + 1;
+                moodStats[record.mood] = (moodStats[record.mood] || 0) + 1;
+                studentStats[record.name] = (studentStats[record.name] || 0) + 1;
+            });
+            
+            let stats = `📊 상담 통계 (총 ${records.length}건)\n\n`;
+            
+            stats += '🌍 언어별 통계:\n';
+            Object.entries(languageStats).forEach(([lang, count]) => {
+                stats += `   ${getLanguageName(lang)}: ${count}건\n`;
+            });
+            
+            stats += '\n😊 기분별 통계:\n';
+            Object.entries(moodStats).forEach(([mood, count]) => {
+                stats += `   ${mood}: ${count}건\n`;
+            });
+            
+            stats += '\n👦 학생별 통계:\n';
+            Object.entries(studentStats).forEach(([name, count]) => {
+                stats += `   ${name}: ${count}건\n`;
+            });
+            
+            alert(stats);
+        }
+
+        // 교사용 메뉴 (Ctrl + M으로 호출)
+        document.addEventListener('keydown', function(event) {
+            if (event.ctrlKey && event.key === 'm') {
+                event.preventDefault();
+                const choice = prompt(`
+교사용 메뉴:
+1. 저장된 기록 보기
+2. 통계 보기  
+3. 모든 기록 삭제
+4. 도움말
+
+번호를 입력하세요 (1-4):`);
+                
+                switch(choice) {
+                    case '1':
+                        viewSavedRecords();
+                        break;
+                    case '2':
+                        viewStatistics();
+                        break;
+                    case '3':
+                        if (confirm('정말 모든 기록을 삭제하시겠습니까?')) {
+                            localStorage.removeItem('counselingRecords');
+                            localStorage.removeItem('counselingAudio');
+                            alert('✅ 모든 기록이 삭제되었습니다.');
+                        }
+                        break;
+                    case '4':
+                        alert(`
+🎯 사용법:
+• Ctrl + S: 현재 기록 저장
+• Ctrl + P: 현재 기록 인쇄  
+• Ctrl + N: 새 상담 시작
+• Ctrl + M: 교사 메뉴 열기
+
+📱 학생 사용법:
+1. 언어 선택 (국기 클릭)
+2. 이름 선택
+3. 오늘 기분 선택
+4. 마이크로 이야기하기
+5. 완료 후 선생님이 확인`);
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
