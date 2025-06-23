@@ -151,7 +151,6 @@
             border-top: 9px solid #fff;
         }
         
-        /* 언어 선택 화면 */
         .language-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -188,7 +187,6 @@
             margin-bottom: 10px;
         }
         
-        /* 이름 선택 화면 */
         .name-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -225,7 +223,6 @@
             margin-bottom: 8px;
         }
         
-        /* 기분 선택 화면 */
         .mood-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
@@ -251,8 +248,8 @@
         }
         
         .mood-option:hover {
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.15);
             background: linear-gradient(145deg, #fecfef, #ff9a9e);
         }
         
@@ -262,7 +259,6 @@
             margin-bottom: 5px;
         }
         
-        /* 녹음 화면 */
         .record-section {
             margin: 15px 0;
         }
@@ -328,34 +324,11 @@
             border: 2px solid #a8e6cf;
         }
         
-        /* 결과 표시 */
         .result-section {
             margin-top: 30px;
             text-align: left;
         }
         
-        .transcript-box, .translation-box {
-            background: #f8fffe;
-            padding: 20px;
-            margin: 15px 0;
-            border-radius: 20px;
-            border: 3px solid #a8e6cf;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .transcript-box h4, .translation-box h4 {
-            color: #2d8a57;
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-        
-        .transcript-text, .translation-text {
-            font-size: 16px;
-            line-height: 1.6;
-            color: #2d5a3d;
-        }
-        
-        /* 네비게이션 버튼 */
         .nav-buttons {
             margin-top: 20px;
             margin-bottom: 10px;
@@ -415,7 +388,6 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         
-        /* 교사 화면 */
         .teacher-screen {
             background: #f8fffe;
             border: 3px solid #2d8a57;
@@ -499,7 +471,6 @@
             box-shadow: 0 8px 20px rgba(45, 138, 87, 0.3);
         }
         
-        /* 교사 화면 버튼을 우상단에 배치 */
         .teacher-access-btn {
             position: absolute;
             top: 15px;
@@ -523,7 +494,6 @@
             box-shadow: 0 8px 20px rgba(45, 138, 87, 0.3);
         }
         
-        /* 녹음 파일 관련 스타일 */
         .audio-controls {
             margin: 10px 0;
             display: flex;
@@ -554,6 +524,48 @@
             transform: translateY(-1px);
             box-shadow: 0 5px 15px rgba(255, 154, 158, 0.3);
         }
+
+        /* API 설정 화면 */
+        .api-config {
+            background: #f0f8ff;
+            border: 2px solid #4ecdc4;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .api-input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 2px solid #a8e6cf;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .api-button {
+            background: linear-gradient(145deg, #2d8a57, #4ecdc4);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin: 5px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        .status-connected { background-color: #2ed573; }
+        .status-disconnected { background-color: #ff4757; }
     </style>
 </head>
 <body>
@@ -562,6 +574,7 @@
         <button class="teacher-access-btn" onclick="goToTeacherScreen()" id="teacherAccessBtn">
             👩‍🏫 교사 화면
         </button>
+
         <!-- 1단계: 언어 선택 -->
         <div class="screen active" id="languageScreen">
             <div class="koala-character">🐨</div>
@@ -694,10 +707,37 @@
                 👩‍🏫 교사용 상담 기록 확인
             </div>
             
+            <!-- API 설정 섹션 -->
+            <div class="api-config">
+                <h4 style="color: #2d8a57; margin-bottom: 15px;">🔧 API 설정</h4>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">Google Cloud Speech-to-Text API 키:</label>
+                    <span class="status-indicator" id="speechStatus"></span>
+                    <input type="password" class="api-input" id="speechApiKey" placeholder="API 키를 입력하세요">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">Google Translate API 키:</label>
+                    <span class="status-indicator" id="translateStatus"></span>
+                    <input type="password" class="api-input" id="translateApiKey" placeholder="API 키를 입력하세요">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">서버 URL (선택사항):</label>
+                    <span class="status-indicator" id="serverStatus"></span>
+                    <input type="text" class="api-input" id="serverUrl" placeholder="https://your-server.com/api" value="http://localhost:3000/api">
+                </div>
+                
+                <button class="api-button" onclick="saveApiSettings()">💾 설정 저장</button>
+                <button class="api-button" onclick="testApiConnections()">🔍 연결 테스트</button>
+            </div>
+            
             <div class="teacher-nav">
                 <button class="teacher-button" onclick="goToScreen('languageScreen')">🔙 학생 화면으로</button>
                 <button class="teacher-button" onclick="exportAllRecords()">📋 전체 기록 내보내기</button>
                 <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
+                <button class="teacher-button" onclick="syncWithServer()">☁️ 서버 동기화</button>
             </div>
             
             <div id="allRecordsContainer">
@@ -722,10 +762,40 @@
         let isRecording = false;
         let startTime;
         let timerInterval;
-        let recognition;
         
         // 상담 기록을 저장할 배열
         let counselingRecords = [];
+        
+        // API 설정
+        let apiSettings = {
+            speechApiKey: localStorage.getItem('speechApiKey') || '',
+            translateApiKey: localStorage.getItem('translateApiKey') || '',
+            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
+        };
+        
+        // 페이지 로드 시 API 설정 복원
+        window.addEventListener('load', () => {
+            document.getElementById('speechApiKey').value = apiSettings.speechApiKey;
+            document.getElementById('translateApiKey').value = apiSettings.translateApiKey;
+            document.getElementById('serverUrl').value = apiSettings.serverUrl;
+            updateApiStatus();
+            loadRecordsFromServer();
+        });
+        
+        // 화면 전환 함수
+        function goToScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            // 첫 번째 화면(언어선택)에서만 교사 접근 버튼 표시
+            if (screenId === 'languageScreen') {
+                document.getElementById('teacherAccessBtn').style.display = 'block';
+            } else {
+                document.getElementById('teacherAccessBtn').style.display = 'none';
+            }
+        }
         
         // 1단계: 언어 선택
         function selectLanguage(langCode, langName) {
@@ -737,7 +807,6 @@
         // 2단계: 이름 선택
         function selectName(name) {
             selectedName = name;
-            // 인사말 업데이트
             document.getElementById('greetingText').textContent = `안녕 ${name}!`;
             goToScreen('moodScreen');
         }
@@ -747,7 +816,6 @@
             selectedMood = mood;
             selectedMoodEmoji = emoji;
             
-            // 학생 정보 표시
             const studentInfo = document.getElementById('studentInfo');
             studentInfo.innerHTML = `
                 👦 ${selectedName} | 🌍 ${selectedLanguage} | ${selectedMoodEmoji} ${selectedMood}
@@ -760,7 +828,6 @@
         // 음성 인식 및 녹음 초기화
         async function initializeRecorder() {
             try {
-                // 마이크 권한 요청
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: true,
@@ -782,32 +849,6 @@
                 mediaRecorder.onstop = () => {
                     processRecording();
                 };
-                
-                // 음성 인식 설정
-                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                    recognition = new SpeechRecognition();
-                    recognition.continuous = true;
-                    recognition.interimResults = true;
-                    recognition.lang = selectedLanguageCode;
-                    
-                    recognition.onresult = (event) => {
-                        let finalTranscript = '';
-                        for (let i = event.resultIndex; i < event.results.length; i++) {
-                            if (event.results[i].isFinal) {
-                                finalTranscript += event.results[i][0].transcript;
-                            }
-                        }
-                        if (finalTranscript) {
-                            // 음성 인식 결과를 임시 저장 (화면에 표시하지 않음)
-                            window.recognizedText = finalTranscript;
-                        }
-                    };
-                    
-                    recognition.onerror = (event) => {
-                        console.error('Speech recognition error:', event.error);
-                    };
-                }
                 
                 document.getElementById('status').textContent = '준비 완료! 코알라가 기다리고 있어요!';
                 document.getElementById('status').className = 'status ready-status';
@@ -833,11 +874,6 @@
             
             recordedChunks = [];
             mediaRecorder.start();
-            
-            if (recognition) {
-                recognition.start();
-            }
-            
             isRecording = true;
             startTime = Date.now();
             
@@ -858,11 +894,6 @@
             if (!isRecording) return;
             
             mediaRecorder.stop();
-            
-            if (recognition) {
-                recognition.stop();
-            }
-            
             isRecording = false;
             
             const recordButton = document.getElementById('recordButton');
@@ -888,7 +919,7 @@
             }, 1000);
         }
         
-        // 녹음 처리 및 번역
+        // 녹음 처리 (실제 API 사용)
         async function processRecording() {
             const loadingMessage = document.getElementById('loadingMessage');
             const resultSection = document.getElementById('resultSection');
@@ -896,26 +927,41 @@
             
             loadingMessage.style.display = 'block';
             
-            // 임시로 텍스트 저장용 변수들
-            let transcriptText = '';
-            let translationText = '';
-            
             try {
-                // 음성 텍스트가 이미 인식되었다면 번역 진행
-                transcriptText = window.recognizedText || '음성 인식 내용이 없습니다.';
+                // 오디오 블롭 생성
+                const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
                 
-                if (transcriptText && transcriptText !== '음성 인식 내용이 없습니다.') {
-                    // 번역 시뮬레이션
-                    translationText = await simulateTranslation(transcriptText);
-                    
-                    // 상담 기록에 자동 저장
-                    saveCounselingRecord(transcriptText, translationText);
+                let transcriptText = '';
+                let translationText = '';
+                
+                // Google Speech-to-Text API 사용
+                if (apiSettings.speechApiKey) {
+                    try {
+                        transcriptText = await speechToText(audioBlob);
+                    } catch (error) {
+                        console.error('Speech-to-Text error:', error);
+                        transcriptText = '음성 인식에 실패했습니다.';
+                    }
                 } else {
-                    // 음성 인식이 안된 경우
-                    transcriptText = '음성이 잘 들리지 않았어요.';
-                    translationText = '음성 인식을 다시 시도해주세요.';
-                    saveCounselingRecord(transcriptText, translationText);
+                    transcriptText = '음성 인식 API가 설정되지 않았습니다.';
                 }
+                
+                // Google Translate API 사용
+                if (apiSettings.translateApiKey && transcriptText && selectedLanguageCode !== 'ko-KR') {
+                    try {
+                        translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
+                    } catch (error) {
+                        console.error('Translation error:', error);
+                        translationText = '번역에 실패했습니다.';
+                    }
+                } else if (selectedLanguageCode === 'ko-KR') {
+                    translationText = transcriptText;
+                } else {
+                    translationText = '번역 API가 설정되지 않았습니다.';
+                }
+                
+                // 상담 기록에 자동 저장
+                await saveCounselingRecord(transcriptText, translationText, audioBlob);
                 
                 // 아이들에게는 종료 메시지만 표시
                 resultSection.style.display = 'block';
@@ -933,43 +979,244 @@
             loadingMessage.style.display = 'none';
         }
         
-        // 번역 시뮬레이션 (결과를 반환하도록 수정)
-        async function simulateTranslation(text) {
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    let translation = '';
-                    if (selectedLanguageCode === 'ko-KR') {
-                        translation = text; // 이미 한국어
-                    } else {
-                        translation = `[${selectedLanguage}에서 번역됨] ${text}`;
+        // Google Speech-to-Text API 호출
+        async function speechToText(audioBlob) {
+            if (!apiSettings.speechApiKey) {
+                throw new Error('Speech API key not configured');
+            }
+            
+            // WAV 형식으로 변환이 필요할 수 있음
+            const base64Audio = await blobToBase64(audioBlob);
+            
+            const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiSettings.speechApiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: {
+                        encoding: 'WEBM_OPUS',
+                        sampleRateHertz: 48000,
+                        languageCode: selectedLanguageCode,
+                        enableAutomaticPunctuation: true,
+                    },
+                    audio: {
+                        content: base64Audio.split(',')[1] // base64 데이터만 추출
                     }
-                    
-                    resolve(translation);
-                }, 2000);
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Speech API error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.results && result.results.length > 0) {
+                return result.results[0].alternatives[0].transcript;
+            } else {
+                return '음성을 인식할 수 없습니다.';
+            }
+        }
+        
+        // Google Translate API 호출
+        async function translateText(text, sourceLang, targetLang) {
+            if (!apiSettings.translateApiKey) {
+                throw new Error('Translate API key not configured');
+            }
+            
+            const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${apiSettings.translateApiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    q: text,
+                    source: sourceLang.split('-')[0], // 'ko-KR' -> 'ko'
+                    target: targetLang,
+                    format: 'text'
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Translate API error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            return result.data.translations[0].translatedText;
+        }
+        
+        // Blob을 Base64로 변환
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
             });
         }
         
-        // 상담 기록 저장 (녹음 파일 포함)
-        function saveCounselingRecord(transcript, translation) {
-            // 녹음된 오디오 블롭 생성
-            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-            const audioUrl = URL.createObjectURL(blob);
+        // 상담 기록 저장 (서버 연동)
+        async function saveCounselingRecord(transcript, translation, audioBlob) {
+            const audioUrl = URL.createObjectURL(audioBlob);
             
             const record = {
                 id: Date.now(),
-                timestamp: new Date().toLocaleString('ko-KR'),
+                timestamp: new Date().toISOString(),
                 student: selectedName,
                 language: selectedLanguage,
+                languageCode: selectedLanguageCode,
                 mood: selectedMood,
                 moodEmoji: selectedMoodEmoji,
                 transcript: transcript,
                 translation: translation,
-                audioBlob: blob,
+                audioBlob: audioBlob,
                 audioUrl: audioUrl
             };
             
             counselingRecords.push(record);
+            
+            // 서버에 저장 시도
+            try {
+                await saveToServer(record);
+            } catch (error) {
+                console.error('Server save failed:', error);
+                // 서버 저장 실패해도 로컬에는 저장됨
+            }
+            
             updateTeacherScreen();
+        }
+        
+        // 서버에 기록 저장
+        async function saveToServer(record) {
+            if (!apiSettings.serverUrl) return;
+            
+            const formData = new FormData();
+            formData.append('data', JSON.stringify({
+                id: record.id,
+                timestamp: record.timestamp,
+                student: record.student,
+                language: record.language,
+                languageCode: record.languageCode,
+                mood: record.mood,
+                moodEmoji: record.moodEmoji,
+                transcript: record.transcript,
+                translation: record.translation
+            }));
+            formData.append('audio', record.audioBlob, `recording_${record.id}.webm`);
+            
+            const response = await fetch(`${apiSettings.serverUrl}/counseling-records`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+            
+            return await response.json();
+        }
+        
+        // 서버에서 기록 불러오기
+        async function loadRecordsFromServer() {
+            if (!apiSettings.serverUrl) return;
+            
+            try {
+                const response = await fetch(`${apiSettings.serverUrl}/counseling-records`);
+                if (response.ok) {
+                    const serverRecords = await response.json();
+                    // 서버 기록과 로컬 기록 병합
+                    counselingRecords = [...counselingRecords, ...serverRecords];
+                    updateTeacherScreen();
+                }
+            } catch (error) {
+                console.error('Failed to load from server:', error);
+            }
+        }
+        
+        // 서버와 동기화
+        async function syncWithServer() {
+            if (!apiSettings.serverUrl) {
+                showError('서버 URL이 설정되지 않았습니다.');
+                return;
+            }
+            
+            try {
+                await loadRecordsFromServer();
+                alert('서버와 동기화가 완료되었습니다!');
+            } catch (error) {
+                showError('서버 동기화에 실패했습니다: ' + error.message);
+            }
+        }
+        
+        // API 설정 저장
+        function saveApiSettings() {
+            apiSettings.speechApiKey = document.getElementById('speechApiKey').value;
+            apiSettings.translateApiKey = document.getElementById('translateApiKey').value;
+            apiSettings.serverUrl = document.getElementById('serverUrl').value;
+            
+            localStorage.setItem('speechApiKey', apiSettings.speechApiKey);
+            localStorage.setItem('translateApiKey', apiSettings.translateApiKey);
+            localStorage.setItem('serverUrl', apiSettings.serverUrl);
+            
+            updateApiStatus();
+            alert('API 설정이 저장되었습니다!');
+        }
+        
+        // API 연결 테스트
+        async function testApiConnections() {
+            const speechStatus = document.getElementById('speechStatus');
+            const translateStatus = document.getElementById('translateStatus');
+            const serverStatus = document.getElementById('serverStatus');
+            
+            // Speech API 테스트
+            if (apiSettings.speechApiKey) {
+                try {
+                    const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiSettings.speechApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            config: { encoding: 'LINEAR16', sampleRateHertz: 16000, languageCode: 'ko-KR' },
+                            audio: { content: '' }
+                        })
+                    });
+                    speechStatus.className = response.status === 400 ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+                } catch (error) {
+                    speechStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            // Translate API 테스트
+            if (apiSettings.translateApiKey) {
+                try {
+                    const response = await fetch(`https://translation.googleapis.com/language/translate/v2/languages?key=${apiSettings.translateApiKey}`);
+                    translateStatus.className = response.ok ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+                } catch (error) {
+                    translateStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            // 서버 연결 테스트
+            if (apiSettings.serverUrl) {
+                try {
+                    const response = await fetch(`${apiSettings.serverUrl}/health`);
+                    serverStatus.className = response.ok ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+                } catch (error) {
+                    serverStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            alert('연결 테스트가 완료되었습니다. 상태 표시등을 확인하세요.');
+        }
+        
+        // API 상태 업데이트
+        function updateApiStatus() {
+            document.getElementById('speechStatus').className = 
+                apiSettings.speechApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+            document.getElementById('translateStatus').className = 
+                apiSettings.translateApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+            document.getElementById('serverStatus').className = 
+                apiSettings.serverUrl ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
         }
         
         // 교사 화면 업데이트
@@ -983,24 +1230,25 @@
             
             recordsList.innerHTML = '';
             
-            // 최신 기록부터 표시
             counselingRecords.slice().reverse().forEach((record) => {
                 const div = document.createElement('div');
                 div.className = 'counseling-record';
                 div.innerHTML = `
                     <div class="record-header">
                         <div class="student-info">👦 ${record.student}</div>
-                        <div class="record-time">${record.timestamp}</div>
+                        <div class="record-time">${new Date(record.timestamp).toLocaleString('ko-KR')}</div>
                     </div>
                     <div class="mood-info">
                         ${record.moodEmoji} ${record.mood} | 🌍 ${record.language}
                     </div>
+                    ${record.audioUrl ? `
                     <div class="audio-controls">
                         <audio controls src="${record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
                         <button class="download-audio-btn" onclick="downloadAudio(${record.id})">
                             🎵 음성파일 다운로드
                         </button>
                     </div>
+                    ` : ''}
                     <div style="margin-top: 15px;">
                         <h5 style="color: #2d8a57; margin-bottom: 8px;">📝 원본 내용:</h5>
                         <p style="background: #f0f8f5; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.transcript}</p>
@@ -1018,23 +1266,7 @@
         function goToTeacherScreen() {
             updateTeacherScreen();
             goToScreen('teacherScreen');
-            // 교사 화면에서는 교사 접근 버튼 숨김
             document.getElementById('teacherAccessBtn').style.display = 'none';
-        }
-        
-        // 학생 화면으로 돌아갈 때 교사 버튼 표시 조건 설정
-        function goToScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
-            });
-            document.getElementById(screenId).classList.add('active');
-            
-            // 첫 번째 화면(언어선택)에서만 교사 접근 버튼 표시
-            if (screenId === 'languageScreen') {
-                document.getElementById('teacherAccessBtn').style.display = 'block';
-            } else {
-                document.getElementById('teacherAccessBtn').style.display = 'none';
-            }
         }
         
         // 녹음 파일 다운로드
@@ -1047,7 +1279,7 @@
             
             const a = document.createElement('a');
             a.href = record.audioUrl;
-            a.download = `음성녹음_${record.student}_${record.timestamp.replace(/[:/\s]/g, '_')}.webm`;
+            a.download = `음성녹음_${record.student}_${new Date(record.timestamp).toISOString().slice(0,10)}.webm`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1065,7 +1297,7 @@
             
             counselingRecords.forEach((record, index) => {
                 exportText += `${index + 1}. 상담 기록\n`;
-                exportText += `날짜: ${record.timestamp}\n`;
+                exportText += `날짜: ${new Date(record.timestamp).toLocaleString('ko-KR')}\n`;
                 exportText += `학생: ${record.student}\n`;
                 exportText += `언어: ${record.language}\n`;
                 exportText += `기분: ${record.mood} ${record.moodEmoji}\n\n`;
@@ -1119,53 +1351,11 @@
             selectedMood = '';
             selectedMoodEmoji = '';
             
-            // 음성 인식 텍스트 초기화
-            window.recognizedText = '';
-            
             document.getElementById('resultSection').style.display = 'none';
             document.getElementById('endMessage').style.display = 'none';
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
-        }
-        
-        // 개별 결과 저장
-        function saveReport() {
-            const report = {
-                timestamp: new Date().toLocaleString('ko-KR'),
-                student: selectedName,
-                language: selectedLanguage,
-                mood: selectedMood + ' ' + selectedMoodEmoji,
-                transcript: document.getElementById('transcriptText').textContent,
-                translation: document.getElementById('translationText').textContent
-            };
-            
-            const reportText = `
-코알라와의 상담 기록
-==================
-날짜: ${report.timestamp}
-학생: ${report.student}
-언어: ${report.language}
-기분: ${report.mood}
-
-원본 내용:
-${report.transcript}
-
-한국어 번역:
-${report.translation}
-            `;
-            
-            const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `코알라_상담기록_${selectedName}_${new Date().toISOString().slice(0,10)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            alert('상담 기록이 저장되었습니다!');
         }
     </script>
 </body>
