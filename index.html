@@ -617,7 +617,7 @@
                     리마크
                 </button>
                 <button class="name-option" onclick="selectName('누엔티성우')">
-                    <span class="student-avatar">👦🏽</span>
+                    <span class="student-avatar">👦🏻</span>
                     누엔티성우
                 </button>
                 <button class="name-option" onclick="selectName('정시율')">
@@ -680,8 +680,6 @@
                 편안하게 이야기해줘. 잘 들을게!
             </div>
             
-            <div class="info-display" id="studentInfo"></div>
-            
             <div class="status" id="status">마이크 버튼을 눌러 이야기를 시작하세요</div>
             <div class="time-display" id="timeDisplay">00:00</div>
             
@@ -691,12 +689,6 @@
                 </button>
             </div>
             
-            <div class="result-section" id="resultSection" style="display: none;">
-                <div class="speech-bubble" id="endMessage" style="display: none; background: linear-gradient(145deg, #a8e6cf, #7fcdcd); border: 3px solid #4ecdc4;">
-                    오늘 이야기 즐거웠어! 다음에 또 만나! 🐨💕
-                </div>
-            </div>
-            
             <div class="loading" id="loadingMessage" style="display: none;">
                 🐨 코알라가 이야기를 정리하고 있어요...
             </div>
@@ -704,6 +696,15 @@
             <div class="nav-buttons">
                 <button class="nav-button" onclick="goToScreen('moodScreen')">🔙 이전</button>
                 <button class="nav-button" onclick="resetProgram()">🔄 처음부터</button>
+            </div>
+        </div>
+
+        <!-- 5단계: 종료 메시지 -->
+        <div class="screen" id="endScreen">
+            <div class="koala-character koala-happy">🐨</div>
+            <h2>고마워!</h2>
+            <div class="speech-bubble" style="background: linear-gradient(145deg, #a8e6cf, #7fcdcd); border: 3px solid #4ecdc4;">
+                오늘 이야기 즐거웠어! 다음에 또 만나! 🐨💕
             </div>
         </div>
 
@@ -1188,11 +1189,6 @@
             selectedMood = mood;
             selectedMoodEmoji = emoji;
             
-            const studentInfo = document.getElementById('studentInfo');
-            studentInfo.innerHTML = `
-                👦 ${selectedName} | 🌍 ${selectedLanguage} | ${selectedMoodEmoji} ${selectedMood}
-            `;
-            
             goToScreen('recordScreen');
             initializeRecorder();
         }
@@ -1222,7 +1218,7 @@
                     processRecording();
                 };
                 
-                document.getElementById('status').textContent = '준비 완료! 코알라가 기다리고 있어요!';
+                document.getElementById('status').textContent = '마이크 버튼을 눌러 이야기를 시작하세요';
                 document.getElementById('status').className = 'status ready-status';
                 
             } catch (error) {
@@ -1294,8 +1290,6 @@
         // 녹음 처리 (실제 API 사용)
         async function processRecording() {
             const loadingMessage = document.getElementById('loadingMessage');
-            const resultSection = document.getElementById('resultSection');
-            const endMessage = document.getElementById('endMessage');
             
             loadingMessage.style.display = 'block';
             
@@ -1318,7 +1312,7 @@
                     transcriptText = '음성 인식 API가 설정되지 않았습니다.';
                 }
                 
-                // Google Translate API 사용
+                // 한국어가 아닐 때만 번역
                 if (apiSettings.translateApiKey && transcriptText && selectedLanguageCode !== 'ko-KR') {
                     try {
                         translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
@@ -1327,6 +1321,7 @@
                         translationText = '번역에 실패했습니다.';
                     }
                 } else if (selectedLanguageCode === 'ko-KR') {
+                    // 한국어인 경우 번역하지 않고 원본 그대로 사용
                     translationText = transcriptText;
                 } else {
                     translationText = '번역 API가 설정되지 않았습니다.';
@@ -1335,9 +1330,8 @@
                 // 상담 기록에 자동 저장
                 await saveCounselingRecord(transcriptText, translationText, audioBlob);
                 
-                // 아이들에게는 종료 메시지만 표시
-                resultSection.style.display = 'block';
-                endMessage.style.display = 'block';
+                // 종료 화면으로 이동
+                goToScreen('endScreen');
                 
                 // 3초 후 자동으로 처음 화면으로
                 setTimeout(() => {
@@ -1792,8 +1786,6 @@
             selectedMood = '';
             selectedMoodEmoji = '';
             
-            document.getElementById('resultSection').style.display = 'none';
-            document.getElementById('endMessage').style.display = 'none';
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
