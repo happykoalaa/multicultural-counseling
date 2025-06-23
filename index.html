@@ -1,4 +1,4 @@
-                <button class="cloud-button" onclick="testCloudConnections()">🔍 연결 테스트</button>
+               <button class="cloud-button" onclick="testCloudConnections()">🔍 연결 테스트</button>
                 <button class="cloud-button" onclick="initializeRealTimeSync()">🌐 실시간 동기화 시작</button>
             </div>
             
@@ -323,8 +323,15 @@
             
             if (screenId === 'languageScreen') {
                 document.getElementById('teacherAccessBtn').style.display = 'block';
+                // 학생 화면에서는 동기화 표시등 숨기기
+                document.getElementById('syncIndicator').classList.remove('visible');
+            } else if (screenId === 'teacherScreen') {
+                // 교사 화면에서는 동기화 표시등 보이기
+                document.getElementById('syncIndicator').classList.add('visible');
             } else {
                 document.getElementById('teacherAccessBtn').style.display = 'none';
+                // 다른 학생 화면에서는 동기화 표시등 숨기기
+                document.getElementById('syncIndicator').classList.remove('visible');
             }
         }
         
@@ -784,6 +791,8 @@
             updateTeacherScreen();
             goToScreen('teacherScreen');
             document.getElementById('teacherAccessBtn').style.display = 'none';
+            // 교사 화면에서만 실시간 동기화 표시등 보이기
+            document.getElementById('syncIndicator').classList.add('visible');
         }
         
         // 녹음 파일 다운로드
@@ -1512,6 +1521,11 @@
             font-size: 12px;
             font-weight: bold;
             z-index: 1000;
+            display: none; /* 기본적으로 숨김 */
+        }
+        
+        .real-time-indicator.visible {
+            display: block; /* 교사 화면에서만 표시 */
         }
         
         .real-time-indicator.syncing {
