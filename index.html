@@ -593,21 +593,15 @@
             <div class="status" id="status">마이크 버튼을 눌러 이야기를 시작하세요</div>
             <div class="time-display" id="timeDisplay">00:00</div>
             
-            <div class="record-section">
+            <div class="record-section" style="display: flex; justify-content: center;">
                 <button class="record-button" id="recordButton" onclick="toggleRecording()">
                     <span id="recordIcon">🎤</span>
                 </button>
             </div>
             
             <div class="result-section" id="resultSection" style="display: none;">
-                <div class="transcript-box">
-                    <h4>🎯 들은 이야기 (원본)</h4>
-                    <div class="transcript-text" id="transcriptText">...</div>
-                </div>
-                
-                <div class="translation-box">
-                    <h4>🔄 한국어로 번역</h4>
-                    <div class="translation-text" id="translationText">...</div>
+                <div class="speech-bubble" id="endMessage" style="display: none; background: linear-gradient(145deg, #a8e6cf, #7fcdcd); border: 3px solid #4ecdc4;">
+                    오늘 이야기 즐거웠어! 다음에 또 만나! 🐨💕
                 </div>
             </div>
             
@@ -618,7 +612,6 @@
             <div class="nav-buttons">
                 <button class="nav-button" onclick="goToScreen('moodScreen')">🔙 이전</button>
                 <button class="nav-button" onclick="resetProgram()">🔄 처음부터</button>
-                <button class="nav-button" onclick="saveReport()">💾 기록 저장</button>
                 <button class="nav-button" onclick="goToTeacherScreen()">👩‍🏫 교사 화면</button>
             </div>
         </div>
@@ -742,7 +735,8 @@
                             }
                         }
                         if (finalTranscript) {
-                            document.getElementById('transcriptText').textContent = finalTranscript;
+                            // 음성 인식 결과를 임시 저장 (화면에 표시하지 않음)
+                            window.recognizedText = finalTranscript;
                         }
                     };
                     
@@ -813,7 +807,7 @@
             
             recordButton.classList.remove('recording');
             recordIcon.textContent = '🎤';
-            status.textContent = '고마워! 코알라가 이야기를 정리할게!';
+            status.textContent = '녹음이 완료되었습니다!';
             status.className = 'status ready-status';
             
             clearInterval(timerInterval);
@@ -834,26 +828,39 @@
         async function processRecording() {
             const loadingMessage = document.getElementById('loadingMessage');
             const resultSection = document.getElementById('resultSection');
+            const endMessage = document.getElementById('endMessage');
             
             loadingMessage.style.display = 'block';
             
+            // 임시로 텍스트 저장용 변수들
+            let transcriptText = '';
+            let translationText = '';
+            
             try {
                 // 음성 텍스트가 이미 인식되었다면 번역 진행
-                const transcriptText = document.getElementById('transcriptText').textContent;
+                transcriptText = window.recognizedText || '음성 인식 내용이 없습니다.';
                 
-                if (transcriptText && transcriptText !== '...') {
+                if (transcriptText && transcriptText !== '음성 인식 내용이 없습니다.') {
                     // 번역 시뮬레이션
-                    await simulateTranslation(transcriptText);
+                    translationText = await simulateTranslation(transcriptText);
                     
-                    // 상담 기록에 저장
-                    saveCounselingRecord(transcriptText, document.getElementById('translationText').textContent);
+                    // 상담 기록에 자동 저장
+                    saveCounselingRecord(transcriptText, translationText);
                 } else {
-                    // 음성 인식이 안된 경우 대체 메시지
-                    document.getElementById('transcriptText').textContent = '음성이 잘 들리지 않았어요. 다시 한 번 말해볼까요?';
-                    document.getElementById('translationText').textContent = '음성 인식을 다시 시도해주세요.';
+                    // 음성 인식이 안된 경우
+                    transcriptText = '음성이 잘 들리지 않았어요.';
+                    translationText = '음성 인식을 다시 시도해주세요.';
+                    saveCounselingRecord(transcriptText, translationText);
                 }
                 
+                // 아이들에게는 종료 메시지만 표시
                 resultSection.style.display = 'block';
+                endMessage.style.display = 'block';
+                
+                // 3초 후 자동으로 처음 화면으로
+                setTimeout(() => {
+                    resetProgram();
+                }, 3000);
                 
             } catch (error) {
                 showError('처리 중 문제가 생겼어요: ' + error.message);
@@ -862,7 +869,7 @@
             loadingMessage.style.display = 'none';
         }
         
-        // 번역 시뮬레이션
+        // 번역 시뮬레이션 (결과를 반환하도록 수정)
         async function simulateTranslation(text) {
             return new Promise((resolve) => {
                 setTimeout(() => {
@@ -873,8 +880,7 @@
                         translation = `[${selectedLanguage}에서 번역됨] ${text}`;
                     }
                     
-                    document.getElementById('translationText').textContent = translation;
-                    resolve();
+                    resolve(translation);
                 }, 2000);
             });
         }
@@ -1004,9 +1010,11 @@
             selectedMood = '';
             selectedMoodEmoji = '';
             
-            document.getElementById('transcriptText').textContent = '...';
-            document.getElementById('translationText').textContent = '...';
+            // 음성 인식 텍스트 초기화
+            window.recognizedText = '';
+            
             document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('endMessage').style.display = 'none';
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
