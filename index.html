@@ -1,4 +1,919 @@
-<!DOCTYPE html>
+                <button class="cloud-button" onclick="testCloudConnections()">🔍 연결 테스트</button>
+                <button class="cloud-button" onclick="initializeRealTimeSync()">🌐 실시간 동기화 시작</button>
+            </div>
+            
+            <div class="teacher-nav">
+                <button class="teacher-button" onclick="goToScreen('languageScreen')">🔙 학생 화면으로</button>
+                <button class="teacher-button" onclick="exportAllRecords()">📋 전체 기록 내보내기</button>
+                <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
+                <button class="teacher-button" onclick="forceSync()">⚡ 즉시 동기화</button>
+                <button class="teacher-button" onclick="refreshRecords()">🔄 기록 새로고침</button>
+            </div>
+            
+            <div id="allRecordsContainer">
+                <h3 style="color: #2d8a57; text-align: center; margin: 20px 0;">
+                    📚 상담 기록 목록 
+                    <span style="font-size: 14px; color: #666;">(총 <span id="recordCount">0</span>개)</span>
+                </h3>
+                <div id="recordsList"></div>
+            </div>
+        </div>
+        
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let selectedLanguage = '';
+        let selectedLanguageCode = '';
+        let selectedName = '';
+        let selectedMood = '';
+        let selectedMoodEmoji = '';
+        
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
+        let startTime;
+        let timerInterval;
+        
+        // 상담 기록을 저장할 배열
+        let counselingRecords = [];
+        
+        // 클라우드 설정
+        let cloudSettings = {
+            firebaseProject: localStorage.getItem('firebaseProject') || '',
+            firebaseApiKey: localStorage.getItem('firebaseApiKey') || '',
+            speechApiKey: localStorage.getItem('speechApiKey') || '',
+            translateApiKey: localStorage.getItem('translateApiKey') || ''
+        };
+        
+        // 기기 정보
+        let deviceInfo = {
+            id: localStorage.getItem('deviceId') || generateDeviceId(),
+            type: detectDeviceType(),
+            name: localStorage.getItem('deviceName') || generateDeviceName()
+        };
+        
+        // Firebase 관련 변수
+        let firebaseInitialized = false;
+        let realtimeListener = null;
+        
+        // 기기 ID 생성
+        function generateDeviceId() {
+            const id = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            localStorage.setItem('deviceId', id);
+            return id;
+        }
+        
+        // 기기 유형 감지
+        function detectDeviceType() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            if (/tablet|ipad|playbook|silk/i.test(userAgent)) {
+                return '📱 태블릿';
+            } else if (/mobile|iphone|ipod|android|blackberry|opera|mini|windows\sce|palm|smartphone|iemobile/i.test(userAgent)) {
+                return '📱 모바일';
+            } else {
+                return '💻 데스크톱';
+            }
+        }
+        
+        // 기기 이름 생성
+        function generateDeviceName() {
+            const type = deviceInfo.type.includes('태블릿') ? '태블릿' : 
+                        deviceInfo.type.includes('모바일') ? '모바일' : 'PC';
+            const number = Math.floor(Math.random() * 100) + 1;
+            const name = `코알라_${type}_${number}`;
+            localStorage.setItem('deviceName', name);
+            return name;
+        }
+        
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', () => {
+            // 기기 정보 표시
+            document.getElementById('deviceId').textContent = deviceInfo.id;
+            document.getElementById('deviceType').textContent = deviceInfo.type;
+            document.getElementById('lastSync').textContent = new Date().toLocaleString('ko-KR');
+            
+            // 클라우드 설정 복원
+            document.getElementById('firebaseProject').value = cloudSettings.firebaseProject;
+            document.getElementById('firebaseApiKey').value = cloudSettings.firebaseApiKey;
+            document.getElementById('speechApiKey').value = cloudSettings.speechApiKey;
+            document.getElementById('translateApiKey').value = cloudSettings.translateApiKey;
+            
+            updateCloudStatus();
+            loadRecordsFromLocal();
+            
+            // 자동으로 실시간 동기화 시작 시도
+            if (cloudSettings.firebaseProject && cloudSettings.firebaseApiKey) {
+                initializeRealTimeSync();
+            }
+        });
+        
+        // Firebase 초기화 및 실시간 동기화 설정
+        async function initializeRealTimeSync() {
+            if (!cloudSettings.firebaseProject || !cloudSettings.firebaseApiKey) {
+                showError('Firebase 설정이 필요합니다.');
+                return;
+            }
+            
+            try {
+                updateSyncIndicator('connecting');
+                
+                // Firebase SDK 동적 로드
+                if (!window.firebase) {
+                    await loadFirebaseSDK();
+                }
+                
+                // Firebase 초기화
+                if (!firebaseInitialized) {
+                    const firebaseConfig = {
+                        apiKey: cloudSettings.firebaseApiKey,
+                        authDomain: `${cloudSettings.firebaseProject}.firebaseapp.com`,
+                        databaseURL: `https://${cloudSettings.firebaseProject}-default-rtdb.firebaseio.com`,
+                        projectId: cloudSettings.firebaseProject,
+                        storageBucket: `${cloudSettings.firebaseProject}.appspot.com`,
+                        messagingSenderId: "123456789",
+                        appId: "1:123456789:web:abcdef"
+                    };
+                    
+                    firebase.initializeApp(firebaseConfig);
+                    firebaseInitialized = true;
+                }
+                
+                // 실시간 데이터베이스 리스너 설정
+                const database = firebase.database();
+                const recordsRef = database.ref('counseling-records');
+                
+                // 기존 리스너 제거
+                if (realtimeListener) {
+                    realtimeListener.off();
+                }
+                
+                // 새 리스너 등록
+                realtimeListener = recordsRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const firebaseRecords = Object.values(data);
+                        mergeRecordsFromCloud(firebaseRecords);
+                        updateLastSyncTime();
+                    }
+                });
+                
+                updateSyncIndicator('connected');
+                updateSyncStatus('🌐 실시간 동기화 활성화됨 - 모든 기기와 연동 중');
+                
+            } catch (error) {
+                console.error('Firebase 초기화 실패:', error);
+                updateSyncIndicator('error');
+                updateSyncStatus('❌ 실시간 동기화 실패');
+                showError('실시간 동기화 설정에 실패했습니다: ' + error.message);
+            }
+        }
+        
+        // Firebase SDK 동적 로드
+        function loadFirebaseSDK() {
+            return new Promise((resolve, reject) => {
+                // Firebase App SDK
+                const appScript = document.createElement('script');
+                appScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
+                appScript.onload = () => {
+                    // Firebase Database SDK
+                    const dbScript = document.createElement('script');
+                    dbScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
+                    dbScript.onload = resolve;
+                    dbScript.onerror = reject;
+                    document.head.appendChild(dbScript);
+                };
+                appScript.onerror = reject;
+                document.head.appendChild(appScript);
+            });
+        }
+        
+        // 클라우드에서 기록 병합
+        function mergeRecordsFromCloud(cloudRecords) {
+            const existingIds = counselingRecords.map(r => r.id);
+            const newRecords = cloudRecords.filter(r => !existingIds.includes(r.id));
+            
+            if (newRecords.length > 0) {
+                counselingRecords = [...counselingRecords, ...newRecords];
+                saveRecordsToLocal();
+                updateTeacherScreen();
+                
+                // 새 기록이 추가되었음을 알림
+                if (document.getElementById('teacherScreen').classList.contains('active')) {
+                    updateSyncStatus(`✨ ${newRecords.length}개의 새로운 기록이 동기화되었습니다`);
+                }
+            }
+        }
+        
+        // 클라우드에 기록 저장
+        async function saveToCloud(record) {
+            if (!firebaseInitialized || !firebase.database) {
+                throw new Error('Firebase가 초기화되지 않았습니다.');
+            }
+            
+            try {
+                updateSyncIndicator('syncing');
+                
+                const database = firebase.database();
+                const recordRef = database.ref(`counseling-records/${record.id}`);
+                
+                // 오디오 데이터는 Base64로 저장
+                const cloudRecord = {
+                    ...record,
+                    audioData: record.audioData || await blobToBase64(record.audioBlob),
+                    deviceInfo: deviceInfo,
+                    syncTimestamp: Date.now()
+                };
+                
+                // audioBlob과 audioUrl은 Firebase에 저장하지 않음
+                delete cloudRecord.audioBlob;
+                delete cloudRecord.audioUrl;
+                
+                await recordRef.set(cloudRecord);
+                updateSyncIndicator('connected');
+                
+                return cloudRecord;
+            } catch (error) {
+                updateSyncIndicator('error');
+                throw error;
+            }
+        }
+        
+        // Blob을 Base64로 변환
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+        
+        // 동기화 상태 표시 업데이트
+        function updateSyncIndicator(status) {
+            const indicator = document.getElementById('syncIndicator');
+            switch (status) {
+                case 'connected':
+                    indicator.textContent = '🌐 연결됨';
+                    indicator.className = 'real-time-indicator';
+                    break;
+                case 'syncing':
+                    indicator.textContent = '🔄 동기화 중';
+                    indicator.className = 'real-time-indicator syncing';
+                    break;
+                case 'connecting':
+                    indicator.textContent = '📡 연결 중';
+                    indicator.className = 'real-time-indicator syncing';
+                    break;
+                case 'error':
+                    indicator.textContent = '❌ 연결 끊김';
+                    indicator.className = 'real-time-indicator';
+                    indicator.style.background = 'rgba(255, 71, 87, 0.9)';
+                    break;
+            }
+        }
+        
+        // 동기화 상태 메시지 업데이트
+        function updateSyncStatus(message) {
+            const syncStatus = document.getElementById('syncStatus');
+            if (syncStatus) {
+                syncStatus.textContent = message;
+            }
+        }
+        
+        // 마지막 동기화 시간 업데이트
+        function updateLastSyncTime() {
+            document.getElementById('lastSync').textContent = new Date().toLocaleString('ko-KR');
+        }
+        
+        // 즉시 동기화
+        async function forceSync() {
+            if (!firebaseInitialized) {
+                showError('실시간 동기화가 설정되지 않았습니다.');
+                return;
+            }
+            
+            try {
+                updateSyncIndicator('syncing');
+                
+                // 로컬 기록들을 클라우드에 업로드
+                for (const record of counselingRecords) {
+                    if (!record.syncTimestamp) {
+                        await saveToCloud(record);
+                    }
+                }
+                
+                updateSyncIndicator('connected');
+                updateSyncStatus('⚡ 즉시 동기화 완료');
+                alert('모든 기록이 클라우드와 동기화되었습니다!');
+                
+            } catch (error) {
+                updateSyncIndicator('error');
+                showError('동기화 실패: ' + error.message);
+            }
+        }
+        
+        // 화면 전환 함수
+        function goToScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            if (screenId === 'languageScreen') {
+                document.getElementById('teacherAccessBtn').style.display = 'block';
+            } else {
+                document.getElementById('teacherAccessBtn').style.display = 'none';
+            }
+        }
+        
+        // 1단계: 언어 선택
+        function selectLanguage(langCode, langName) {
+            selectedLanguageCode = langCode;
+            selectedLanguage = langName;
+            goToScreen('nameScreen');
+        }
+        
+        // 2단계: 이름 선택
+        function selectName(name) {
+            selectedName = name;
+            document.getElementById('greetingText').textContent = `안녕 ${name}!`;
+            goToScreen('moodScreen');
+        }
+        
+        // 3단계: 기분 선택
+        function selectMood(mood, emoji) {
+            selectedMood = mood;
+            selectedMoodEmoji = emoji;
+            
+            goToScreen('recordScreen');
+            initializeRecorder();
+        }
+        
+        // 음성 인식 및 녹음 초기화
+        async function initializeRecorder() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    } 
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    processRecording();
+                };
+                
+                document.getElementById('status').textContent = '마이크 버튼을 눌러 이야기를 시작하세요';
+                document.getElementById('status').className = 'status ready-status';
+                
+            } catch (error) {
+                showError('마이크 사용 권한이 필요해요. 코알라와 이야기하려면 마이크를 허용해주세요!');
+                console.error('Error accessing microphone:', error);
+            }
+        }
+        
+        // 녹음 토글
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+        
+        // 녹음 시작
+        function startRecording() {
+            if (!mediaRecorder) return;
+            
+            recordedChunks = [];
+            mediaRecorder.start();
+            isRecording = true;
+            startTime = Date.now();
+            
+            const recordButton = document.getElementById('recordButton');
+            const recordIcon = document.getElementById('recordIcon');
+            const status = document.getElementById('status');
+            
+            recordButton.classList.add('recording');
+            recordIcon.textContent = '⏹️';
+            status.textContent = '코알라가 잘 듣고 있어요! 다시 버튼을 누르면 끝나요';
+            status.className = 'status recording-status';
+            
+            startTimer();
+        }
+        
+        // 녹음 정지
+        function stopRecording() {
+            if (!isRecording) return;
+            
+            mediaRecorder.stop();
+            isRecording = false;
+            
+            const recordButton = document.getElementById('recordButton');
+            const recordIcon = document.getElementById('recordIcon');
+            const status = document.getElementById('status');
+            
+            recordButton.classList.remove('recording');
+            recordIcon.textContent = '🎤';
+            status.textContent = '녹음이 완료되었습니다!';
+            status.className = 'status ready-status';
+            
+            clearInterval(timerInterval);
+        }
+        
+        // 타이머 시작
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                document.getElementById('timeDisplay').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+        
+        // 녹음 처리 (실제 API 사용)
+        async function processRecording() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            const resultSection = document.getElementById('resultSection');
+            const endMessage = document.getElementById('endMessage');
+            
+            loadingMessage.style.display = 'block';
+            
+            try {
+                const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+                
+                let transcriptText = '';
+                let translationText = '';
+                
+                // Google Speech-to-Text API 사용
+                if (cloudSettings.speechApiKey) {
+                    try {
+                        transcriptText = await speechToText(audioBlob);
+                    } catch (error) {
+                        console.error('Speech-to-Text error:', error);
+                        transcriptText = '음성 인식에 실패했습니다.';
+                    }
+                } else {
+                    transcriptText = '음성 인식 API가 설정되지 않았습니다.';
+                }
+                
+                // Google Translate API 사용 (한국어가 아닌 경우에만)
+                if (cloudSettings.translateApiKey && transcriptText && selectedLanguageCode !== 'ko-KR') {
+                    try {
+                        translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
+                    } catch (error) {
+                        console.error('Translation error:', error);
+                        translationText = '번역에 실패했습니다.';
+                    }
+                } else if (selectedLanguageCode === 'ko-KR') {
+                    // 한국어인 경우 번역하지 않고 원본 텍스트 사용
+                    translationText = transcriptText;
+                } else {
+                    translationText = '번역 API가 설정되지 않았습니다.';
+                }
+                
+                // 상담 기록에 자동 저장 (실시간 동기화 포함)
+                await saveCounselingRecord(transcriptText, translationText, audioBlob);
+                
+                // 아이들에게는 종료 메시지만 표시 (바로 표시)
+                resultSection.style.display = 'block';
+                endMessage.style.display = 'block';
+                
+                // 5초 후 자동으로 처음 화면으로
+                setTimeout(() => {
+                    resetProgram();
+                }, 5000);
+                
+            } catch (error) {
+                showError('처리 중 문제가 생겼어요: ' + error.message);
+            }
+            
+            loadingMessage.style.display = 'none';
+        }
+        
+        // Google Speech-to-Text API 호출
+        async function speechToText(audioBlob) {
+            if (!cloudSettings.speechApiKey) {
+                throw new Error('Speech API key not configured');
+            }
+            
+            const base64Audio = await blobToBase64(audioBlob);
+            
+            const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${cloudSettings.speechApiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: {
+                        encoding: 'WEBM_OPUS',
+                        sampleRateHertz: 48000,
+                        languageCode: selectedLanguageCode,
+                        enableAutomaticPunctuation: true,
+                    },
+                    audio: {
+                        content: base64Audio
+                    }
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Speech API error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.results && result.results.length > 0) {
+                return result.results[0].alternatives[0].transcript;
+            } else {
+                return '음성을 인식할 수 없습니다.';
+            }
+        }
+        
+        // Google Translate API 호출
+        async function translateText(text, sourceLang, targetLang) {
+            if (!cloudSettings.translateApiKey) {
+                throw new Error('Translate API key not configured');
+            }
+            
+            const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${cloudSettings.translateApiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    q: text,
+                    source: sourceLang.split('-')[0],
+                    target: targetLang,
+                    format: 'text'
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Translate API error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            return result.data.translations[0].translatedText;
+        }
+        
+        // 상담 기록 저장 (로컬 + 클라우드 실시간 동기화)
+        async function saveCounselingRecord(transcript, translation, audioBlob) {
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audioData = await blobToBase64(audioBlob);
+            
+            const record = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                student: selectedName,
+                language: selectedLanguage,
+                languageCode: selectedLanguageCode,
+                mood: selectedMood,
+                moodEmoji: selectedMoodEmoji,
+                transcript: transcript,
+                translation: translation,
+                audioBlob: audioBlob,
+                audioUrl: audioUrl,
+                audioData: audioData,
+                deviceInfo: deviceInfo
+            };
+            
+            counselingRecords.push(record);
+            
+            // 로컬 저장소에 즉시 저장
+            saveRecordsToLocal();
+            
+            // 클라우드에 실시간 저장
+            try {
+                await saveToCloud(record);
+                updateSyncStatus('✅ 새 상담 기록이 모든 기기에 동기화되었습니다');
+            } catch (error) {
+                console.error('Cloud save failed:', error);
+                updateSyncStatus('⚠️ 로컬에 저장됨 (클라우드 동기화 대기 중)');
+            }
+            
+            updateTeacherScreen();
+        }
+        
+        // 로컬 저장소에서 상담 기록 불러오기
+        function loadRecordsFromLocal() {
+            try {
+                const savedRecords = localStorage.getItem('counselingRecords');
+                if (savedRecords) {
+                    const parsedRecords = JSON.parse(savedRecords);
+                    
+                    parsedRecords.forEach(record => {
+                        if (record.audioData) {
+                            const byteCharacters = atob(record.audioData);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
+                            
+                            record.audioBlob = audioBlob;
+                            record.audioUrl = URL.createObjectURL(audioBlob);
+                        }
+                    });
+                    
+                    counselingRecords = parsedRecords;
+                    updateTeacherScreen();
+                }
+            } catch (error) {
+                console.error('로컬 기록 불러오기 실패:', error);
+            }
+        }
+        
+        // 로컬 저장소에 상담 기록 저장
+        function saveRecordsToLocal() {
+            try {
+                const recordsToSave = counselingRecords.map(record => {
+                    const recordCopy = { ...record };
+                    delete recordCopy.audioBlob;
+                    delete recordCopy.audioUrl;
+                    return recordCopy;
+                });
+                
+                localStorage.setItem('counselingRecords', JSON.stringify(recordsToSave));
+            } catch (error) {
+                console.error('로컬 기록 저장 실패:', error);
+            }
+        }
+        
+        // 클라우드 설정 저장
+        function saveCloudSettings() {
+            cloudSettings.firebaseProject = document.getElementById('firebaseProject').value;
+            cloudSettings.firebaseApiKey = document.getElementById('firebaseApiKey').value;
+            cloudSettings.speechApiKey = document.getElementById('speechApiKey').value;
+            cloudSettings.translateApiKey = document.getElementById('translateApiKey').value;
+            
+            localStorage.setItem('firebaseProject', cloudSettings.firebaseProject);
+            localStorage.setItem('firebaseApiKey', cloudSettings.firebaseApiKey);
+            localStorage.setItem('speechApiKey', cloudSettings.speechApiKey);
+            localStorage.setItem('translateApiKey', cloudSettings.translateApiKey);
+            
+            updateCloudStatus();
+            alert('클라우드 설정이 저장되었습니다!');
+        }
+        
+        // 클라우드 연결 테스트
+        async function testCloudConnections() {
+            const firebaseStatus = document.getElementById('firebaseStatus');
+            const speechStatus = document.getElementById('speechStatus');
+            const translateStatus = document.getElementById('translateStatus');
+            
+            // Firebase 테스트
+            if (cloudSettings.firebaseProject && cloudSettings.firebaseApiKey) {
+                try {
+                    await initializeRealTimeSync();
+                    firebaseStatus.className = 'status-indicator status-connected';
+                } catch (error) {
+                    firebaseStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            // Speech API 테스트
+            if (cloudSettings.speechApiKey) {
+                try {
+                    const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${cloudSettings.speechApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            config: { encoding: 'LINEAR16', sampleRateHertz: 16000, languageCode: 'ko-KR' },
+                            audio: { content: '' }
+                        })
+                    });
+                    speechStatus.className = response.status === 400 ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+                } catch (error) {
+                    speechStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            // Translate API 테스트
+            if (cloudSettings.translateApiKey) {
+                try {
+                    const response = await fetch(`https://translation.googleapis.com/language/translate/v2/languages?key=${cloudSettings.translateApiKey}`);
+                    translateStatus.className = response.ok ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+                } catch (error) {
+                    translateStatus.className = 'status-indicator status-disconnected';
+                }
+            }
+            
+            alert('연결 테스트가 완료되었습니다. 상태 표시등을 확인하세요.');
+        }
+        
+        // 클라우드 상태 업데이트
+        function updateCloudStatus() {
+            document.getElementById('firebaseStatus').className = 
+                (cloudSettings.firebaseProject && cloudSettings.firebaseApiKey) ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+            document.getElementById('speechStatus').className = 
+                cloudSettings.speechApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+            document.getElementById('translateStatus').className = 
+                cloudSettings.translateApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
+        }
+        
+        // 교사 화면 업데이트
+        function updateTeacherScreen() {
+            const recordsList = document.getElementById('recordsList');
+            const recordCount = document.getElementById('recordCount');
+            
+            if (recordCount) {
+                recordCount.textContent = counselingRecords.length;
+            }
+            
+            if (counselingRecords.length === 0) {
+                recordsList.innerHTML = '<p style="text-align: center; color: #666; margin: 40px 0;">아직 상담 기록이 없습니다.</p>';
+                return;
+            }
+            
+            recordsList.innerHTML = '';
+            
+            counselingRecords.slice().reverse().forEach((record) => {
+                const div = document.createElement('div');
+                div.className = 'counseling-record';
+                
+                div.innerHTML = `
+                    <div class="record-header">
+                        <div class="student-info">👦 ${record.student}</div>
+                        <div class="record-time">
+                            ${new Date(record.timestamp).toLocaleString('ko-KR')}
+                            ${deviceInfoText}
+                        </div>
+                    </div>
+                    <div class="mood-info">
+                        ${record.moodEmoji} ${record.mood} | 🌍 ${record.language}
+                    </div>
+                    ${record.audioUrl ? `
+                    <div class="audio-controls">
+                        <audio controls src="${record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
+                        <button class="download-audio-btn" onclick="downloadAudio(${record.id})">
+                            🎵 음성파일 다운로드
+                        </button>
+                    </div>
+                    ` : ''}
+                    <div style="margin-top: 15px;">
+                        <h5 style="color: #2d8a57; margin-bottom: 8px;">📝 원본 내용:</h5>
+                        <p style="background: #f0f8f5; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.transcript}</p>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <h5 style="color: #2d8a57; margin-bottom: 8px;">🔄 한국어 번역:</h5>
+                        <p style="background: #e8f5f3; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.translation}</p>
+                    </div>
+                `;
+                recordsList.appendChild(div);
+            });
+        }
+        
+        // 교사 화면으로 이동
+        function goToTeacherScreen() {
+            updateTeacherScreen();
+            goToScreen('teacherScreen');
+            document.getElementById('teacherAccessBtn').style.display = 'none';
+        }
+        
+        // 녹음 파일 다운로드
+        function downloadAudio(recordId) {
+            const record = counselingRecords.find(r => r.id === recordId);
+            if (!record || !record.audioBlob) {
+                alert('녹음 파일을 찾을 수 없습니다.');
+                return;
+            }
+            
+            const a = document.createElement('a');
+            a.href = record.audioUrl;
+            a.download = `음성녹음_${record.student}_${new Date(record.timestamp).toISOString().slice(0,10)}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        // 전체 기록 내보내기
+        function exportAllRecords() {
+            if (counselingRecords.length === 0) {
+                alert('내보낼 상담 기록이 없습니다.');
+                return;
+            }
+            
+            let exportText = '코알라 상담 프로그램 - 전체 기록 (다중 기기 연동)\n';
+            exportText += '================================================================\n\n';
+            
+            counselingRecords.forEach((record, index) => {
+                exportText += `${index + 1}. 상담 기록\n`;
+                exportText += `날짜: ${new Date(record.timestamp).toLocaleString('ko-KR')}\n`;
+                exportText += `학생: ${record.student}\n`;
+                exportText += `언어: ${record.language}\n`;
+                exportText += `기분: ${record.mood} ${record.moodEmoji}\n`;
+                if (record.deviceInfo) {
+                    exportText += `기기: ${record.deviceInfo.type} (${record.deviceInfo.name})\n`;
+                }
+                exportText += `\n원본 내용:\n${record.transcript}\n\n`;
+                exportText += `한국어 번역:\n${record.translation}\n\n`;
+                exportText += '----------------------------------------------------------------\n\n';
+            });
+            
+            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `코알라_상담기록_전체_${new Date().toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('전체 상담 기록이 저장되었습니다!');
+        }
+        
+        // 모든 기록 지우기
+        function clearAllRecords() {
+            if (counselingRecords.length === 0) {
+                alert('지울 기록이 없습니다.');
+                return;
+            }
+            
+            if (confirm('정말로 모든 상담 기록을 지우시겠습니까?\n이 작업은 모든 기기에서 기록이 삭제되며 되돌릴 수 없습니다.')) {
+                // 로컬에서 삭제
+                counselingRecords = [];
+                localStorage.removeItem('counselingRecords');
+                
+                // Firebase에서도 삭제
+                if (firebaseInitialized && firebase.database) {
+                    try {
+                        const database = firebase.database();
+                        database.ref('counseling-records').remove();
+                        updateSyncStatus('🗑️ 모든 기기에서 기록이 삭제되었습니다');
+                    } catch (error) {
+                        console.error('Firebase 기록 삭제 실패:', error);
+                    }
+                }
+                
+                updateTeacherScreen();
+                alert('모든 상담 기록이 삭제되었습니다.');
+            }
+        }
+        
+        // 기록 새로고침
+        function refreshRecords() {
+            loadRecordsFromLocal();
+            if (firebaseInitialized) {
+                updateSyncStatus('🔄 기록을 새로고침하고 있습니다...');
+                // Firebase에서 강제로 다시 불러오기
+                const database = firebase.database();
+                database.ref('counseling-records').once('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const firebaseRecords = Object.values(data);
+                        mergeRecordsFromCloud(firebaseRecords);
+                    }
+                    updateSyncStatus('✅ 기록 새로고침 완료');
+                });
+            }
+            updateTeacherScreen();
+        }
+        
+        // 오류 메시지 표시
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        // 프로그램 리셋
+        function resetProgram() {
+            selectedLanguage = '';
+            selectedLanguageCode = '';
+            selectedName = '';
+            selectedMood = '';
+            selectedMoodEmoji = '';
+            
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('endMessage').style.display = 'none';
+            document.getElementById('timeDisplay').textContent = '00:00';
+            
+            goToScreen('languageScreen');
+        }
+    </script>
+</body>
+</html>
+                <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -525,8 +1440,8 @@
             box-shadow: 0 5px 15px rgba(255, 154, 158, 0.3);
         }
 
-        /* API 설정 화면 */
-        .api-config {
+        /* 클라우드 설정 화면 */
+        .cloud-config {
             background: #f0f8ff;
             border: 2px solid #4ecdc4;
             border-radius: 15px;
@@ -535,7 +1450,7 @@
             text-align: left;
         }
 
-        .api-input {
+        .cloud-input {
             width: 100%;
             padding: 10px;
             margin: 8px 0;
@@ -544,7 +1459,7 @@
             font-size: 14px;
         }
 
-        .api-button {
+        .cloud-button {
             background: linear-gradient(145deg, #2d8a57, #4ecdc4);
             color: white;
             border: none;
@@ -566,9 +1481,54 @@
 
         .status-connected { background-color: #2ed573; }
         .status-disconnected { background-color: #ff4757; }
+        
+        .device-info {
+            background: #e8f5e8;
+            border: 2px solid #a8e6cf;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .sync-status {
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .real-time-indicator {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(45, 138, 87, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        
+        .real-time-indicator.syncing {
+            background: rgba(255, 193, 7, 0.9);
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
+    <!-- 실시간 동기화 상태 표시 -->
+    <div class="real-time-indicator" id="syncIndicator">🌐 연결됨</div>
+
     <div class="container">
         <!-- 교사 화면 접근 버튼 (우상단 고정) -->
         <button class="teacher-access-btn" onclick="goToTeacherScreen()" id="teacherAccessBtn">
@@ -674,8 +1634,6 @@
                 편안하게 이야기해줘. 잘 들을게!
             </div>
             
-            <div class="info-display" id="studentInfo"></div>
-            
             <div class="status" id="status">마이크 버튼을 눌러 이야기를 시작하세요</div>
             <div class="time-display" id="timeDisplay">00:00</div>
             
@@ -687,7 +1645,7 @@
             
             <div class="result-section" id="resultSection" style="display: none;">
                 <div class="speech-bubble" id="endMessage" style="display: none; background: linear-gradient(145deg, #a8e6cf, #7fcdcd); border: 3px solid #4ecdc4;">
-                    오늘 이야기 즐거웠어! 다음에 또 만나! 🐨💕
+                    오늘 이야기 잘 들었어! 다음에 또 만나! 🐨💕
                 </div>
             </div>
             
@@ -704,659 +1662,47 @@
         <!-- 교사 화면 -->
         <div class="screen" id="teacherScreen">
             <div class="teacher-header">
-                👩‍🏫 교사용 상담 기록 확인
+                👩‍🏫 교사용 상담 기록 확인 - 실시간 연동
             </div>
             
-            <!-- API 설정 섹션 -->
-            <div class="api-config">
-                <h4 style="color: #2d8a57; margin-bottom: 15px;">🔧 API 설정</h4>
+            <!-- 기기 정보 및 동기화 상태 -->
+            <div class="device-info">
+                <h4 style="color: #2d8a57; margin-bottom: 10px;">📱 현재 기기 정보</h4>
+                <div><strong>기기 ID:</strong> <span id="deviceId"></span></div>
+                <div><strong>기기 유형:</strong> <span id="deviceType"></span></div>
+                <div><strong>마지막 동기화:</strong> <span id="lastSync"></span></div>
+            </div>
+            
+            <div class="sync-status" id="syncStatus">
+                🔄 실시간 동기화 활성화됨
+            </div>
+            
+            <!-- 클라우드 설정 섹션 -->
+            <div class="cloud-config">
+                <h4 style="color: #2d8a57; margin-bottom: 15px;">☁️ 클라우드 연동 설정</h4>
                 
                 <div style="margin-bottom: 15px;">
-                    <label style="font-weight: bold;">Google Cloud Speech-to-Text API 키:</label>
+                    <label style="font-weight: bold;">Firebase 프로젝트 ID:</label>
+                    <span class="status-indicator" id="firebaseStatus"></span>
+                    <input type="text" class="cloud-input" id="firebaseProject" placeholder="your-project-id">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">Firebase API 키:</label>
+                    <input type="password" class="cloud-input" id="firebaseApiKey" placeholder="Firebase API 키">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">Google Cloud Speech API 키:</label>
                     <span class="status-indicator" id="speechStatus"></span>
-                    <input type="password" class="api-input" id="speechApiKey" placeholder="API 키를 입력하세요">
+                    <input type="password" class="cloud-input" id="speechApiKey" placeholder="Speech API 키">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="font-weight: bold;">Google Translate API 키:</label>
                     <span class="status-indicator" id="translateStatus"></span>
-                    <input type="password" class="api-input" id="translateApiKey" placeholder="API 키를 입력하세요">
+                    <input type="password" class="cloud-input" id="translateApiKey" placeholder="Translate API 키">
                 </div>
                 
-                <div style="margin-bottom: 15px;">
-                    <label style="font-weight: bold;">서버 URL (선택사항):</label>
-                    <span class="status-indicator" id="serverStatus"></span>
-                    <input type="text" class="api-input" id="serverUrl" placeholder="https://your-server.com/api" value="http://localhost:3000/api">
-                </div>
-                
-                <button class="api-button" onclick="saveApiSettings()">💾 설정 저장</button>
-                <button class="api-button" onclick="testApiConnections()">🔍 연결 테스트</button>
-            </div>
-            
-            <div class="teacher-nav">
-                <button class="teacher-button" onclick="goToScreen('languageScreen')">🔙 학생 화면으로</button>
-                <button class="teacher-button" onclick="exportAllRecords()">📋 전체 기록 내보내기</button>
-                <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
-                <button class="teacher-button" onclick="syncWithServer()">☁️ 서버 동기화</button>
-            </div>
-            
-            <div id="allRecordsContainer">
-                <h3 style="color: #2d8a57; text-align: center; margin: 20px 0;">📚 상담 기록 목록</h3>
-                <div id="recordsList"></div>
-            </div>
-        </div>
-        
-        <div class="error-message" id="errorMessage" style="display: none;"></div>
-    </div>
-
-    <script>
-        // 전역 변수
-        let selectedLanguage = '';
-        let selectedLanguageCode = '';
-        let selectedName = '';
-        let selectedMood = '';
-        let selectedMoodEmoji = '';
-        
-        let mediaRecorder;
-        let recordedChunks = [];
-        let isRecording = false;
-        let startTime;
-        let timerInterval;
-        
-        // 상담 기록을 저장할 배열
-        let counselingRecords = [];
-        
-        // API 설정
-        let apiSettings = {
-            speechApiKey: localStorage.getItem('speechApiKey') || '',
-            translateApiKey: localStorage.getItem('translateApiKey') || '',
-            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
-        };
-        
-        // 페이지 로드 시 API 설정 복원
-        window.addEventListener('load', () => {
-            document.getElementById('speechApiKey').value = apiSettings.speechApiKey;
-            document.getElementById('translateApiKey').value = apiSettings.translateApiKey;
-            document.getElementById('serverUrl').value = apiSettings.serverUrl;
-            updateApiStatus();
-            loadRecordsFromServer();
-        });
-        
-        // 화면 전환 함수
-        function goToScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
-            });
-            document.getElementById(screenId).classList.add('active');
-            
-            // 첫 번째 화면(언어선택)에서만 교사 접근 버튼 표시
-            if (screenId === 'languageScreen') {
-                document.getElementById('teacherAccessBtn').style.display = 'block';
-            } else {
-                document.getElementById('teacherAccessBtn').style.display = 'none';
-            }
-        }
-        
-        // 1단계: 언어 선택
-        function selectLanguage(langCode, langName) {
-            selectedLanguageCode = langCode;
-            selectedLanguage = langName;
-            goToScreen('nameScreen');
-        }
-        
-        // 2단계: 이름 선택
-        function selectName(name) {
-            selectedName = name;
-            document.getElementById('greetingText').textContent = `안녕 ${name}!`;
-            goToScreen('moodScreen');
-        }
-        
-        // 3단계: 기분 선택
-        function selectMood(mood, emoji) {
-            selectedMood = mood;
-            selectedMoodEmoji = emoji;
-            
-            const studentInfo = document.getElementById('studentInfo');
-            studentInfo.innerHTML = `
-                👦 ${selectedName} | 🌍 ${selectedLanguage} | ${selectedMoodEmoji} ${selectedMood}
-            `;
-            
-            goToScreen('recordScreen');
-            initializeRecorder();
-        }
-        
-        // 음성 인식 및 녹음 초기화
-        async function initializeRecorder() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100
-                    } 
-                });
-                
-                mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: 'audio/webm;codecs=opus'
-                });
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
-                    }
-                };
-                
-                mediaRecorder.onstop = () => {
-                    processRecording();
-                };
-                
-                document.getElementById('status').textContent = '준비 완료! 코알라가 기다리고 있어요!';
-                document.getElementById('status').className = 'status ready-status';
-                
-            } catch (error) {
-                showError('마이크 사용 권한이 필요해요. 코알라와 이야기하려면 마이크를 허용해주세요!');
-                console.error('Error accessing microphone:', error);
-            }
-        }
-        
-        // 녹음 토글
-        function toggleRecording() {
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        }
-        
-        // 녹음 시작
-        function startRecording() {
-            if (!mediaRecorder) return;
-            
-            recordedChunks = [];
-            mediaRecorder.start();
-            isRecording = true;
-            startTime = Date.now();
-            
-            const recordButton = document.getElementById('recordButton');
-            const recordIcon = document.getElementById('recordIcon');
-            const status = document.getElementById('status');
-            
-            recordButton.classList.add('recording');
-            recordIcon.textContent = '⏹️';
-            status.textContent = '코알라가 잘 듣고 있어요! 다시 버튼을 누르면 끝나요';
-            status.className = 'status recording-status';
-            
-            startTimer();
-        }
-        
-        // 녹음 정지
-        function stopRecording() {
-            if (!isRecording) return;
-            
-            mediaRecorder.stop();
-            isRecording = false;
-            
-            const recordButton = document.getElementById('recordButton');
-            const recordIcon = document.getElementById('recordIcon');
-            const status = document.getElementById('status');
-            
-            recordButton.classList.remove('recording');
-            recordIcon.textContent = '🎤';
-            status.textContent = '녹음이 완료되었습니다!';
-            status.className = 'status ready-status';
-            
-            clearInterval(timerInterval);
-        }
-        
-        // 타이머 시작
-        function startTimer() {
-            timerInterval = setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                const minutes = Math.floor(elapsed / 60000);
-                const seconds = Math.floor((elapsed % 60000) / 1000);
-                document.getElementById('timeDisplay').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }, 1000);
-        }
-        
-        // 녹음 처리 (실제 API 사용)
-        async function processRecording() {
-            const loadingMessage = document.getElementById('loadingMessage');
-            const resultSection = document.getElementById('resultSection');
-            const endMessage = document.getElementById('endMessage');
-            
-            loadingMessage.style.display = 'block';
-            
-            try {
-                // 오디오 블롭 생성
-                const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
-                
-                let transcriptText = '';
-                let translationText = '';
-                
-                // Google Speech-to-Text API 사용
-                if (apiSettings.speechApiKey) {
-                    try {
-                        transcriptText = await speechToText(audioBlob);
-                    } catch (error) {
-                        console.error('Speech-to-Text error:', error);
-                        transcriptText = '음성 인식에 실패했습니다.';
-                    }
-                } else {
-                    transcriptText = '음성 인식 API가 설정되지 않았습니다.';
-                }
-                
-                // Google Translate API 사용
-                if (apiSettings.translateApiKey && transcriptText && selectedLanguageCode !== 'ko-KR') {
-                    try {
-                        translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
-                    } catch (error) {
-                        console.error('Translation error:', error);
-                        translationText = '번역에 실패했습니다.';
-                    }
-                } else if (selectedLanguageCode === 'ko-KR') {
-                    translationText = transcriptText;
-                } else {
-                    translationText = '번역 API가 설정되지 않았습니다.';
-                }
-                
-                // 상담 기록에 자동 저장
-                await saveCounselingRecord(transcriptText, translationText, audioBlob);
-                
-                // 아이들에게는 종료 메시지만 표시
-                resultSection.style.display = 'block';
-                endMessage.style.display = 'block';
-                
-                // 3초 후 자동으로 처음 화면으로
-                setTimeout(() => {
-                    resetProgram();
-                }, 3000);
-                
-            } catch (error) {
-                showError('처리 중 문제가 생겼어요: ' + error.message);
-            }
-            
-            loadingMessage.style.display = 'none';
-        }
-        
-        // Google Speech-to-Text API 호출
-        async function speechToText(audioBlob) {
-            if (!apiSettings.speechApiKey) {
-                throw new Error('Speech API key not configured');
-            }
-            
-            // WAV 형식으로 변환이 필요할 수 있음
-            const base64Audio = await blobToBase64(audioBlob);
-            
-            const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiSettings.speechApiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    config: {
-                        encoding: 'WEBM_OPUS',
-                        sampleRateHertz: 48000,
-                        languageCode: selectedLanguageCode,
-                        enableAutomaticPunctuation: true,
-                    },
-                    audio: {
-                        content: base64Audio.split(',')[1] // base64 데이터만 추출
-                    }
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Speech API error: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.results && result.results.length > 0) {
-                return result.results[0].alternatives[0].transcript;
-            } else {
-                return '음성을 인식할 수 없습니다.';
-            }
-        }
-        
-        // Google Translate API 호출
-        async function translateText(text, sourceLang, targetLang) {
-            if (!apiSettings.translateApiKey) {
-                throw new Error('Translate API key not configured');
-            }
-            
-            const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${apiSettings.translateApiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    q: text,
-                    source: sourceLang.split('-')[0], // 'ko-KR' -> 'ko'
-                    target: targetLang,
-                    format: 'text'
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Translate API error: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            return result.data.translations[0].translatedText;
-        }
-        
-        // Blob을 Base64로 변환
-        function blobToBase64(blob) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        }
-        
-        // 상담 기록 저장 (서버 연동)
-        async function saveCounselingRecord(transcript, translation, audioBlob) {
-            const audioUrl = URL.createObjectURL(audioBlob);
-            
-            const record = {
-                id: Date.now(),
-                timestamp: new Date().toISOString(),
-                student: selectedName,
-                language: selectedLanguage,
-                languageCode: selectedLanguageCode,
-                mood: selectedMood,
-                moodEmoji: selectedMoodEmoji,
-                transcript: transcript,
-                translation: translation,
-                audioBlob: audioBlob,
-                audioUrl: audioUrl
-            };
-            
-            counselingRecords.push(record);
-            
-            // 서버에 저장 시도
-            try {
-                await saveToServer(record);
-            } catch (error) {
-                console.error('Server save failed:', error);
-                // 서버 저장 실패해도 로컬에는 저장됨
-            }
-            
-            updateTeacherScreen();
-        }
-        
-        // 서버에 기록 저장
-        async function saveToServer(record) {
-            if (!apiSettings.serverUrl) return;
-            
-            const formData = new FormData();
-            formData.append('data', JSON.stringify({
-                id: record.id,
-                timestamp: record.timestamp,
-                student: record.student,
-                language: record.language,
-                languageCode: record.languageCode,
-                mood: record.mood,
-                moodEmoji: record.moodEmoji,
-                transcript: record.transcript,
-                translation: record.translation
-            }));
-            formData.append('audio', record.audioBlob, `recording_${record.id}.webm`);
-            
-            const response = await fetch(`${apiSettings.serverUrl}/counseling-records`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
-            
-            return await response.json();
-        }
-        
-        // 서버에서 기록 불러오기
-        async function loadRecordsFromServer() {
-            if (!apiSettings.serverUrl) return;
-            
-            try {
-                const response = await fetch(`${apiSettings.serverUrl}/counseling-records`);
-                if (response.ok) {
-                    const serverRecords = await response.json();
-                    // 서버 기록과 로컬 기록 병합
-                    counselingRecords = [...counselingRecords, ...serverRecords];
-                    updateTeacherScreen();
-                }
-            } catch (error) {
-                console.error('Failed to load from server:', error);
-            }
-        }
-        
-        // 서버와 동기화
-        async function syncWithServer() {
-            if (!apiSettings.serverUrl) {
-                showError('서버 URL이 설정되지 않았습니다.');
-                return;
-            }
-            
-            try {
-                await loadRecordsFromServer();
-                alert('서버와 동기화가 완료되었습니다!');
-            } catch (error) {
-                showError('서버 동기화에 실패했습니다: ' + error.message);
-            }
-        }
-        
-        // API 설정 저장
-        function saveApiSettings() {
-            apiSettings.speechApiKey = document.getElementById('speechApiKey').value;
-            apiSettings.translateApiKey = document.getElementById('translateApiKey').value;
-            apiSettings.serverUrl = document.getElementById('serverUrl').value;
-            
-            localStorage.setItem('speechApiKey', apiSettings.speechApiKey);
-            localStorage.setItem('translateApiKey', apiSettings.translateApiKey);
-            localStorage.setItem('serverUrl', apiSettings.serverUrl);
-            
-            updateApiStatus();
-            alert('API 설정이 저장되었습니다!');
-        }
-        
-        // API 연결 테스트
-        async function testApiConnections() {
-            const speechStatus = document.getElementById('speechStatus');
-            const translateStatus = document.getElementById('translateStatus');
-            const serverStatus = document.getElementById('serverStatus');
-            
-            // Speech API 테스트
-            if (apiSettings.speechApiKey) {
-                try {
-                    const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiSettings.speechApiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            config: { encoding: 'LINEAR16', sampleRateHertz: 16000, languageCode: 'ko-KR' },
-                            audio: { content: '' }
-                        })
-                    });
-                    speechStatus.className = response.status === 400 ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-                } catch (error) {
-                    speechStatus.className = 'status-indicator status-disconnected';
-                }
-            }
-            
-            // Translate API 테스트
-            if (apiSettings.translateApiKey) {
-                try {
-                    const response = await fetch(`https://translation.googleapis.com/language/translate/v2/languages?key=${apiSettings.translateApiKey}`);
-                    translateStatus.className = response.ok ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-                } catch (error) {
-                    translateStatus.className = 'status-indicator status-disconnected';
-                }
-            }
-            
-            // 서버 연결 테스트
-            if (apiSettings.serverUrl) {
-                try {
-                    const response = await fetch(`${apiSettings.serverUrl}/health`);
-                    serverStatus.className = response.ok ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-                } catch (error) {
-                    serverStatus.className = 'status-indicator status-disconnected';
-                }
-            }
-            
-            alert('연결 테스트가 완료되었습니다. 상태 표시등을 확인하세요.');
-        }
-        
-        // API 상태 업데이트
-        function updateApiStatus() {
-            document.getElementById('speechStatus').className = 
-                apiSettings.speechApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-            document.getElementById('translateStatus').className = 
-                apiSettings.translateApiKey ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-            document.getElementById('serverStatus').className = 
-                apiSettings.serverUrl ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
-        }
-        
-        // 교사 화면 업데이트
-        function updateTeacherScreen() {
-            const recordsList = document.getElementById('recordsList');
-            
-            if (counselingRecords.length === 0) {
-                recordsList.innerHTML = '<p style="text-align: center; color: #666; margin: 40px 0;">아직 상담 기록이 없습니다.</p>';
-                return;
-            }
-            
-            recordsList.innerHTML = '';
-            
-            counselingRecords.slice().reverse().forEach((record) => {
-                const div = document.createElement('div');
-                div.className = 'counseling-record';
-                div.innerHTML = `
-                    <div class="record-header">
-                        <div class="student-info">👦 ${record.student}</div>
-                        <div class="record-time">${new Date(record.timestamp).toLocaleString('ko-KR')}</div>
-                    </div>
-                    <div class="mood-info">
-                        ${record.moodEmoji} ${record.mood} | 🌍 ${record.language}
-                    </div>
-                    ${record.audioUrl ? `
-                    <div class="audio-controls">
-                        <audio controls src="${record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
-                        <button class="download-audio-btn" onclick="downloadAudio(${record.id})">
-                            🎵 음성파일 다운로드
-                        </button>
-                    </div>
-                    ` : ''}
-                    <div style="margin-top: 15px;">
-                        <h5 style="color: #2d8a57; margin-bottom: 8px;">📝 원본 내용:</h5>
-                        <p style="background: #f0f8f5; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.transcript}</p>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <h5 style="color: #2d8a57; margin-bottom: 8px;">🔄 한국어 번역:</h5>
-                        <p style="background: #e8f5f3; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.translation}</p>
-                    </div>
-                `;
-                recordsList.appendChild(div);
-            });
-        }
-        
-        // 교사 화면으로 이동
-        function goToTeacherScreen() {
-            updateTeacherScreen();
-            goToScreen('teacherScreen');
-            document.getElementById('teacherAccessBtn').style.display = 'none';
-        }
-        
-        // 녹음 파일 다운로드
-        function downloadAudio(recordId) {
-            const record = counselingRecords.find(r => r.id === recordId);
-            if (!record || !record.audioBlob) {
-                alert('녹음 파일을 찾을 수 없습니다.');
-                return;
-            }
-            
-            const a = document.createElement('a');
-            a.href = record.audioUrl;
-            a.download = `음성녹음_${record.student}_${new Date(record.timestamp).toISOString().slice(0,10)}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-        
-        // 전체 기록 내보내기
-        function exportAllRecords() {
-            if (counselingRecords.length === 0) {
-                alert('내보낼 상담 기록이 없습니다.');
-                return;
-            }
-            
-            let exportText = '코알라 상담 프로그램 - 전체 기록\n';
-            exportText += '=====================================\n\n';
-            
-            counselingRecords.forEach((record, index) => {
-                exportText += `${index + 1}. 상담 기록\n`;
-                exportText += `날짜: ${new Date(record.timestamp).toLocaleString('ko-KR')}\n`;
-                exportText += `학생: ${record.student}\n`;
-                exportText += `언어: ${record.language}\n`;
-                exportText += `기분: ${record.mood} ${record.moodEmoji}\n\n`;
-                exportText += `원본 내용:\n${record.transcript}\n\n`;
-                exportText += `한국어 번역:\n${record.translation}\n\n`;
-                exportText += '-------------------------------------\n\n';
-            });
-            
-            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `코알라_상담기록_전체_${new Date().toISOString().slice(0,10)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            alert('전체 상담 기록이 저장되었습니다!');
-        }
-        
-        // 모든 기록 지우기
-        function clearAllRecords() {
-            if (counselingRecords.length === 0) {
-                alert('지울 기록이 없습니다.');
-                return;
-            }
-            
-            if (confirm('정말로 모든 상담 기록을 지우시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
-                counselingRecords = [];
-                updateTeacherScreen();
-                alert('모든 상담 기록이 삭제되었습니다.');
-            }
-        }
-        
-        // 오류 메시지 표시
-        function showError(message) {
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-            }, 5000);
-        }
-        
-        // 프로그램 리셋
-        function resetProgram() {
-            selectedLanguage = '';
-            selectedLanguageCode = '';
-            selectedName = '';
-            selectedMood = '';
-            selectedMoodEmoji = '';
-            
-            document.getElementById('resultSection').style.display = 'none';
-            document.getElementById('endMessage').style.display = 'none';
-            document.getElementById('timeDisplay').textContent = '00:00';
-            
-            goToScreen('languageScreen');
-        }
-    </script>
-</body>
-</html>
+                <button class="cloud-button" onclick="saveCloudSettings()">💾 설정 저장</button>
+                <button class
