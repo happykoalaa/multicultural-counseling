@@ -590,6 +590,8 @@
             <h1>안녕! 나는 코알라야!</h1>
             <div class="speech-bubble">
                 어떤 언어로 이야기할까?
+                <button class="api-button" onclick="saveApiSettings()">💾 설정 저장</button>
+                <button class="api-button" onclick="testApiConnections()">🔍 연결 테스트</button>
             </div>
             <div class="language-grid">
                 <button class="language-option" onclick="selectLanguage('ko-KR', '한국어')">
@@ -768,8 +770,27 @@
                     <input type="text" class="api-input" id="serverUrl" placeholder="https://your-server.com/api" value="http://localhost:3000/api">
                 </div>
                 
-                <button class="api-button" onclick="saveApiSettings()">💾 설정 저장</button>
-                <button class="api-button" onclick="testApiConnections()">🔍 연결 테스트</button>
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">CLOVA Voice Client ID:</label>
+                    <span class="status-indicator" id="clovaVoiceStatus"></span>
+                    <input type="password" class="api-input" id="clovaVoiceClientId" placeholder="CLOVA Voice Client ID">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold;">CLOVA Voice Client Secret:</label>
+                    <input type="password" class="api-input" id="clovaVoiceClientSecret" placeholder="CLOVA Voice Client Secret">
+                </div>
+                
+                <div style="margin-bottom: 10px; padding: 10px; background: #e8f5e8; border-radius: 8px; font-size: 14px;">
+                    🎵 <strong>CLOVA Voice 기능:</strong> 자연스러운 어린이 목소리로 다국어 음성 안내<br>
+                    • 한국어: 어린이 음성 (nara_call) 🧒<br>
+                    • 영어: 자연스러운 여성 음성 📢<br>
+                    • 일본어: 부드러운 여성 음성 🎌<br>
+                    ※ 베트남어, 러시아어는 브라우저 기본 음성 사용
+                </div>
+                
+                <button class="api-button" onclick="saveClovaSettings()">🎵 CLOVA Voice 설정</button>
+                <button class="api-button" onclick="testClovaVoice()">🔍 음성 테스트</button>
             </div>
             
             <div class="teacher-nav">
@@ -833,49 +854,111 @@
             }
         };
         
-        // 음성 안내 함수
-        function speakText(text, language = currentVoiceLanguage) {
-            if ('speechSynthesis' in window) {
-                // 이전 음성 중지
-                speechSynthesis.cancel();
-                
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = language;
-                
-                // 언어별 음성 설정
-                if (language === 'ko-KR') {
-                    utterance.rate = 0.9;
-                    utterance.pitch = 1.3; // 높은 톤으로 귀여운 목소리
-                } else if (language === 'vi-VN') {
-                    utterance.rate = 0.8;
-                    utterance.pitch = 1.2;
-                } else if (language === 'ru-RU') {
-                    utterance.rate = 0.8;
-                    utterance.pitch = 1.2;
+        // 음성 안내 함수 (CLOVA Voice 우선 사용)
+        async function speakText(text, language = currentVoiceLanguage) {
+            if (!isVoiceEnabled) return;
+            
+            // CLOVA Voice 사용 가능한지 확인
+            if (apiSettings.clovaVoiceClientId && apiSettings.clovaVoiceClientSecret) {
+                try {
+                    await speakWithClova(text, language);
+                    return;
+                } catch (error) {
+                    console.error('CLOVA Voice 실패, 브라우저 음성으로 대체:', error);
                 }
-                
-                // 아이 목소리 찾기
-                const voices = speechSynthesis.getVoices();
-                const childVoice = voices.find(voice => 
-                    voice.lang.startsWith(language.split('-')[0]) && 
-                    (voice.name.includes('child') || voice.name.includes('kid') || voice.name.includes('young'))
-                );
-                
-                if (childVoice) {
-                    utterance.voice = childVoice;
-                } else {
-                    // 언어에 맞는 여성 목소리 찾기
-                    const femaleVoice = voices.find(voice => 
-                        voice.lang.startsWith(language.split('-')[0]) && 
-                        (voice.name.includes('female') || voice.name.includes('woman'))
-                    );
-                    if (femaleVoice) {
-                        utterance.voice = femaleVoice;
-                    }
-                }
-                
-                speechSynthesis.speak(utterance);
             }
+            
+            // 브라우저 기본 음성 사용 (CLOVA 실패 시 또는 설정 없을 때)
+            speakWithBrowser(text, language);
+        }
+        
+        // CLOVA Voice API 사용
+        async function speakWithClova(text, language) {
+            let speaker = 'nara_call'; // 기본: 어린이 목소리
+            
+            // 언어별 스피커 설정
+            if (language === 'ko-KR') {
+                speaker = 'nara_call'; // 어린이 목소리
+            } else if (language === 'en-US' || language.startsWith('en')) {
+                speaker = 'clara'; // 영어 여성 목소리
+            } else if (language === 'ja-JP' || language.startsWith('ja')) {
+                speaker = 'tomoko'; // 일본어 여성 목소리
+            } else {
+                // 베트남어, 러시아어는 브라우저 음성 사용
+                speakWithBrowser(text, language);
+                return;
+            }
+            
+            const response = await fetch('https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts', {
+                method: 'POST',
+                headers: {
+                    'X-NCP-APIGW-API-KEY-ID': apiSettings.clovaVoiceClientId,
+                    'X-NCP-APIGW-API-KEY': apiSettings.clovaVoiceClientSecret,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    speaker: speaker,
+                    volume: '0',
+                    speed: '0',
+                    pitch: '0',
+                    format: 'mp3',
+                    text: text
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`CLOVA Voice API 오류: ${response.status}`);
+            }
+            
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            
+            return new Promise((resolve, reject) => {
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    resolve();
+                };
+                audio.onerror = reject;
+                audio.play();
+            });
+        }
+        
+        // 브라우저 기본 음성 사용 (기존 방식)
+        function speakWithBrowser(text, language) {
+            if (!('speechSynthesis' in window)) return;
+            
+            // 이전 음성 중지
+            speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = language;
+            
+            // 언어별 음성 설정
+            if (language === 'ko-KR') {
+                utterance.rate = 0.9;
+                utterance.pitch = 1.3; // 높은 톤으로 귀여운 목소리
+            } else if (language === 'vi-VN') {
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2;
+            } else if (language === 'ru-RU') {
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2;
+            }
+            
+            // 아이 목소리 또는 여성 목소리 찾기
+            const voices = speechSynthesis.getVoices();
+            const targetVoice = voices.find(voice => 
+                voice.lang.startsWith(language.split('-')[0]) && 
+                (voice.name.includes('child') || voice.name.includes('kid') || 
+                 voice.name.includes('young') || voice.name.includes('female'))
+            );
+            
+            if (targetVoice) {
+                utterance.voice = targetVoice;
+            }
+            
+            speechSynthesis.speak(utterance);
         }
         
         // 음성 로드 확인
@@ -907,7 +990,9 @@
         let apiSettings = {
             speechApiKey: localStorage.getItem('speechApiKey') || '',
             translateApiKey: localStorage.getItem('translateApiKey') || '',
-            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
+            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api',
+            clovaVoiceClientId: localStorage.getItem('clovaVoiceClientId') || '',
+            clovaVoiceClientSecret: localStorage.getItem('clovaVoiceClientSecret') || ''
         };
         
         // Firebase 초기화 (Storage 없이)
@@ -1140,6 +1225,8 @@
             document.getElementById('speechApiKey').value = apiSettings.speechApiKey;
             document.getElementById('translateApiKey').value = apiSettings.translateApiKey;
             document.getElementById('serverUrl').value = apiSettings.serverUrl;
+            document.getElementById('clovaVoiceClientId').value = apiSettings.clovaVoiceClientId;
+            document.getElementById('clovaVoiceClientSecret').value = apiSettings.clovaVoiceClientSecret;
             
             // Firebase 설정 복원
             document.getElementById('firebaseProjectId').value = firebaseConfig.projectId;
@@ -1147,6 +1234,7 @@
             document.getElementById('firebaseAuthDomain').value = firebaseConfig.authDomain;
             
             updateApiStatus();
+            updateClovaVoiceStatus();
             updateFirebaseStatus();
             
             // Firebase 자동 초기화 (설정이 있는 경우)
@@ -1996,51 +2084,6 @@
                 speechSynthesis.cancel(); // 현재 재생 중인 음성 중지
                 alert('음성 안내가 꺼졌습니다.');
             }
-        }
-        
-        // 음성 안내 함수 수정 (토글 기능 추가)
-        function speakText(text, language = currentVoiceLanguage) {
-            if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
-            
-            // 이전 음성 중지
-            speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = language;
-            
-            // 언어별 음성 설정
-            if (language === 'ko-KR') {
-                utterance.rate = 0.9;
-                utterance.pitch = 1.3; // 높은 톤으로 귀여운 목소리
-            } else if (language === 'vi-VN') {
-                utterance.rate = 0.8;
-                utterance.pitch = 1.2;
-            } else if (language === 'ru-RU') {
-                utterance.rate = 0.8;
-                utterance.pitch = 1.2;
-            }
-            
-            // 아이 목소리 찾기
-            const voices = speechSynthesis.getVoices();
-            const childVoice = voices.find(voice => 
-                voice.lang.startsWith(language.split('-')[0]) && 
-                (voice.name.includes('child') || voice.name.includes('kid') || voice.name.includes('young'))
-            );
-            
-            if (childVoice) {
-                utterance.voice = childVoice;
-            } else {
-                // 언어에 맞는 여성 목소리 찾기
-                const femaleVoice = voices.find(voice => 
-                    voice.lang.startsWith(language.split('-')[0]) && 
-                    (voice.name.includes('female') || voice.name.includes('woman'))
-                );
-                if (femaleVoice) {
-                    utterance.voice = femaleVoice;
-                }
-            }
-            
-            speechSynthesis.speak(utterance);
         }
     </script>
 </body>
