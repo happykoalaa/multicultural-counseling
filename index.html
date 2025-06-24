@@ -591,14 +591,6 @@
             <div class="speech-bubble">
                 어떤 언어로 이야기할까?
             </div>
-            
-            <!-- 음성 재생 버튼 추가 -->
-            <div style="margin: 10px 0;">
-                <button onclick="speakMessage('welcome', 'ko-KR')" style="background: none; border: none; font-size: 24px; cursor: pointer; margin: 0 5px;" title="한국어로 듣기">🔊🇰🇷</button>
-                <button onclick="speakMessage('welcome', 'vi-VN')" style="background: none; border: none; font-size: 24px; cursor: pointer; margin: 0 5px;" title="베트남어로 듣기">🔊🇻🇳</button>
-                <button onclick="speakMessage('welcome', 'ru-RU')" style="background: none; border: none; font-size: 24px; cursor: pointer; margin: 0 5px;" title="러시아어로 듣기">🔊🇷🇺</button>
-            </div>
-            
             <div class="language-grid">
                 <button class="language-option" onclick="selectLanguage('ko-KR', '한국어')">
                     <span class="flag">🇰🇷</span>
@@ -786,6 +778,7 @@
                 <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
                 <button class="teacher-button" onclick="syncAllDevices()">🔄 모든 기기 동기화</button>
                 <button class="teacher-button" onclick="refreshRecords()">📱 실시간 새로고침</button>
+                <button class="teacher-button" onclick="toggleVoice()">🔊 음성 안내 ON/OFF</button>
             </div>
             
             <div id="allRecordsContainer">
@@ -814,88 +807,90 @@
         // 상담 기록을 저장할 배열
         let counselingRecords = [];
         
-        // 음성 안내 메시지
-        const voiceMessages = {
+        // 음성 안내 설정
+        let currentVoiceLanguage = 'ko-KR';
+        const voiceTexts = {
             'ko-KR': {
-                welcome: '안녕! 나는 코알라야! 어떤 언어로 이야기할까?',
-                selectName: '좋아! 이제 이름을 알려줘!',
-                selectMood: '오늘 기분은 어떤가요?',
-                startRecord: '편안하게 이야기해줘. 잘 들을게!',
-                goodbye: '오늘 이야기 즐거웠어! 다음에 또 만나!'
+                languageSelect: '안녕! 나는 코알라야! 어떤 언어로 이야기할까?',
+                nameSelect: '좋아! 이제 이름을 알려줘!',
+                moodSelect: '오늘 기분은 어떤가요?',
+                recordStart: '코알라에게 이야기해줘! 편안하게 이야기해줘. 잘 들을게!',
+                recordEnd: '오늘 이야기 즐거웠어! 다음에 또 만나!'
             },
             'vi-VN': {
-                welcome: 'Xin chào! Tôi là Koala! Bạn muốn nói chuyện bằng ngôn ngữ nào?',
-                selectName: 'Tuyệt! Bây giờ hãy cho tôi biết tên của bạn!',
-                selectMood: 'Hôm nay bạn cảm thấy thế nào?',
-                startRecord: 'Hãy thoải mái kể cho tôi nghe. Tôi sẽ lắng nghe!',
-                goodbye: 'Hôm nay trò chuyện rất vui! Hẹn gặp lại bạn!'
+                languageSelect: 'Xin chào! Tôi là Koala! Bạn muốn nói bằng ngôn ngữ nào?',
+                nameSelect: 'Tuyệt vời! Bây giờ hãy cho tôi biết tên của bạn!',
+                moodSelect: 'Hôm nay bạn cảm thấy thế nào?',
+                recordStart: 'Hãy kể cho Koala nghe! Hãy nói một cách thoải mái nhé.',
+                recordEnd: 'Hôm nay nói chuyện rất vui! Hẹn gặp lại bạn!'
             },
             'ru-RU': {
-                welcome: 'Привет! Я Коала! На каком языке ты хочешь говорить?',
-                selectName: 'Отлично! Теперь скажи мне свое имя!',
-                selectMood: 'Как ты себя чувствуешь сегодня?',
-                startRecord: 'Расскажи мне спокойно. Я буду слушать!',
-                goodbye: 'Сегодня было весело разговаривать! Увидимся снова!'
+                languageSelect: 'Привет! Я Коала! На каком языке ты хочешь говорить?',
+                nameSelect: 'Отлично! Теперь скажи мне своё имя!',
+                moodSelect: 'Как ты себя чувствуешь сегодня?',
+                recordStart: 'Расскажи Коале! Говори спокойно, я буду слушать!',
+                recordEnd: 'Сегодня было очень весело разговаривать! Увидимся снова!'
             }
         };
         
-        // 음성 설정
-        let currentVoiceLang = 'ko-KR';
-        let speechSynthesis = window.speechSynthesis;
-        
-        // 음성 재생 함수
-        function speakMessage(messageKey, languageCode = currentVoiceLang) {
-            if (!speechSynthesis) return;
-            
-            // 기존 음성 중지
-            speechSynthesis.cancel();
-            
-            const message = voiceMessages[languageCode][messageKey];
-            if (!message) return;
-            
-            const utterance = new SpeechSynthesisUtterance(message);
-            
-            // 언어별 음성 설정
-            utterance.lang = languageCode;
-            utterance.rate = 0.9; // 조금 느리게
-            utterance.pitch = 1.3; // 높은 톤 (아이 목소리)
-            utterance.volume = 0.8;
-            
-            // 언어별 특정 음성 선택 시도
-            const voices = speechSynthesis.getVoices();
-            const preferredVoice = voices.find(voice => {
-                if (languageCode === 'ko-KR') {
-                    return voice.lang.includes('ko') && voice.name.includes('female');
-                } else if (languageCode === 'vi-VN') {
-                    return voice.lang.includes('vi');
-                } else if (languageCode === 'ru-RU') {
-                    return voice.lang.includes('ru') && voice.name.includes('female');
+        // 음성 안내 함수
+        function speakText(text, language = currentVoiceLanguage) {
+            if ('speechSynthesis' in window) {
+                // 이전 음성 중지
+                speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = language;
+                
+                // 언어별 음성 설정
+                if (language === 'ko-KR') {
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.3; // 높은 톤으로 귀여운 목소리
+                } else if (language === 'vi-VN') {
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1.2;
+                } else if (language === 'ru-RU') {
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1.2;
                 }
-                return false;
+                
+                // 아이 목소리 찾기
+                const voices = speechSynthesis.getVoices();
+                const childVoice = voices.find(voice => 
+                    voice.lang.startsWith(language.split('-')[0]) && 
+                    (voice.name.includes('child') || voice.name.includes('kid') || voice.name.includes('young'))
+                );
+                
+                if (childVoice) {
+                    utterance.voice = childVoice;
+                } else {
+                    // 언어에 맞는 여성 목소리 찾기
+                    const femaleVoice = voices.find(voice => 
+                        voice.lang.startsWith(language.split('-')[0]) && 
+                        (voice.name.includes('female') || voice.name.includes('woman'))
+                    );
+                    if (femaleVoice) {
+                        utterance.voice = femaleVoice;
+                    }
+                }
+                
+                speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // 음성 로드 확인
+        function loadVoices() {
+            return new Promise((resolve) => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                } else {
+                    speechSynthesis.addEventListener('voiceschanged', () => {
+                        resolve(speechSynthesis.getVoices());
+                    }, { once: true });
+                }
             });
-            
-            if (preferredVoice) {
-                utterance.voice = preferredVoice;
-            }
-            
-            speechSynthesis.speak(utterance);
         }
-        
-        // 음성 로드 대기
-        function initVoices() {
-            if (speechSynthesis.getVoices().length === 0) {
-                speechSynthesis.addEventListener('voiceschanged', initVoices);
-            }
-        }
-        
-        // 페이지 로드 시 음성 초기화
-        window.addEventListener('load', () => {
-            initVoices();
-            // 2초 후 환영 메시지 재생
-            setTimeout(() => {
-                speakMessage('welcome', 'ko-KR');
-            }, 1000);
-        });
         
         // Firebase 및 API 설정
         let firebaseConfig = {
@@ -1179,7 +1174,14 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 환영 메시지는 별도로 처리되므로 여기서 제거
+            // 음성 로드
+            loadVoices().then(() => {
+                console.log('음성이 로드되었습니다.');
+                // 첫 화면 음성 안내
+                setTimeout(() => {
+                    speakText(voiceTexts['ko-KR'].languageSelect);
+                }, 1000);
+            });
         });
         
         // 로컬 저장소에서 상담 기록 불러오기
@@ -1285,11 +1287,11 @@
         function selectLanguage(langCode, langName) {
             selectedLanguageCode = langCode;
             selectedLanguage = langName;
-            currentVoiceLang = langCode;
+            currentVoiceLanguage = langCode;
             
-            // 선택된 언어로 안내 음성 재생
+            // 선택한 언어로 음성 안내
             setTimeout(() => {
-                speakMessage('selectName', langCode);
+                speakText(voiceTexts[langCode].nameSelect, langCode);
             }, 500);
             
             goToScreen('nameScreen');
@@ -1300,9 +1302,9 @@
             selectedName = name;
             document.getElementById('greetingText').textContent = `안녕 ${name}!`;
             
-            // 선택된 언어로 기분 선택 안내 음성 재생
+            // 선택한 언어로 음성 안내
             setTimeout(() => {
-                speakMessage('selectMood', currentVoiceLang);
+                speakText(voiceTexts[currentVoiceLanguage].moodSelect, currentVoiceLanguage);
             }, 500);
             
             goToScreen('moodScreen');
@@ -1313,13 +1315,12 @@
             selectedMood = mood;
             selectedMoodEmoji = emoji;
             
-            goToScreen('recordScreen');
-            
-            // 녹음 안내 음성 재생
+            // 선택한 언어로 음성 안내
             setTimeout(() => {
-                speakMessage('startRecord', currentVoiceLang);
+                speakText(voiceTexts[currentVoiceLanguage].recordStart, currentVoiceLanguage);
             }, 500);
             
+            goToScreen('recordScreen');
             initializeRecorder();
         }
         
@@ -1442,17 +1443,17 @@
                     transcriptText = '음성 인식 API가 설정되지 않았습니다.';
                 }
                 
-                // 한국어인 경우 번역하지 않고 원본만 저장
-                if (selectedLanguageCode === 'ko-KR') {
-                    translationText = transcriptText; // 원본 그대로
-                } else if (apiSettings.translateApiKey && transcriptText) {
-                    // 다른 언어인 경우에만 번역
+                // 한국어가 아닐 때만 번역, 한국어면 원본 그대로 사용
+                if (selectedLanguageCode !== 'ko-KR' && apiSettings.translateApiKey && transcriptText) {
                     try {
                         translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
                     } catch (error) {
                         console.error('Translation error:', error);
                         translationText = '번역에 실패했습니다.';
                     }
+                } else if (selectedLanguageCode === 'ko-KR') {
+                    // 한국어인 경우 번역하지 않고 원본만 저장
+                    translationText = '';
                 } else {
                     translationText = '번역 API가 설정되지 않았습니다.';
                 }
@@ -1463,15 +1464,15 @@
                 // 종료 화면으로 이동
                 goToScreen('endScreen');
                 
-                // 작별 인사 음성 재생
+                // 선택한 언어로 종료 인사
                 setTimeout(() => {
-                    speakMessage('goodbye', currentVoiceLang);
+                    speakText(voiceTexts[currentVoiceLanguage].recordEnd, currentVoiceLanguage);
                 }, 500);
                 
-                // 5초 후 자동으로 처음 화면으로 (음성 완료 대기)
+                // 5초 후 자동으로 처음 화면으로
                 setTimeout(() => {
                     resetProgram();
-                }, 4000);
+                }, 5000);
                 
             } catch (error) {
                 showError('처리 중 문제가 생겼어요: ' + error.message);
@@ -1791,12 +1792,12 @@
                         <h5 style="color: #2d8a57; margin-bottom: 8px;">📝 원본 내용:</h5>
                         <p style="background: #f0f8f5; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.transcript}</p>
                     </div>
+                    ${record.translation ? `
                     <div style="margin-top: 10px;">
-                        <h5 style="color: #2d8a57; margin-bottom: 8px;">
-                            ${record.languageCode === 'ko-KR' ? '📝 상담 내용:' : '🔄 한국어 번역:'}
-                        </h5>
+                        <h5 style="color: #2d8a57; margin-bottom: 8px;">🔄 한국어 번역:</h5>
                         <p style="background: #e8f5f3; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.translation}</p>
                     </div>
+                    ` : ''}
                 `;
                 recordsList.appendChild(div);
             });
@@ -1956,15 +1957,15 @@
             selectedName = '';
             selectedMood = '';
             selectedMoodEmoji = '';
-            currentVoiceLang = 'ko-KR'; // 기본 언어로 리셋
+            currentVoiceLanguage = 'ko-KR';
             
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
             
-            // 리셋 후 환영 메시지 재생
+            // 첫 화면 음성 안내
             setTimeout(() => {
-                speakMessage('welcome', 'ko-KR');
+                speakText(voiceTexts['ko-KR'].languageSelect);
             }, 1000);
         }
         
@@ -1979,6 +1980,67 @@
                 updateTeacherScreen();
                 alert('로컬 기록이 새로고침되었습니다!');
             }
+        }
+        
+        // 음성 안내 토글
+        let isVoiceEnabled = true;
+        function toggleVoice() {
+            isVoiceEnabled = !isVoiceEnabled;
+            const button = event.target;
+            
+            if (isVoiceEnabled) {
+                button.textContent = '🔊 음성 안내 ON/OFF';
+                alert('음성 안내가 켜졌습니다.');
+            } else {
+                button.textContent = '🔇 음성 안내 ON/OFF';
+                speechSynthesis.cancel(); // 현재 재생 중인 음성 중지
+                alert('음성 안내가 꺼졌습니다.');
+            }
+        }
+        
+        // 음성 안내 함수 수정 (토글 기능 추가)
+        function speakText(text, language = currentVoiceLanguage) {
+            if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+            
+            // 이전 음성 중지
+            speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = language;
+            
+            // 언어별 음성 설정
+            if (language === 'ko-KR') {
+                utterance.rate = 0.9;
+                utterance.pitch = 1.3; // 높은 톤으로 귀여운 목소리
+            } else if (language === 'vi-VN') {
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2;
+            } else if (language === 'ru-RU') {
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2;
+            }
+            
+            // 아이 목소리 찾기
+            const voices = speechSynthesis.getVoices();
+            const childVoice = voices.find(voice => 
+                voice.lang.startsWith(language.split('-')[0]) && 
+                (voice.name.includes('child') || voice.name.includes('kid') || voice.name.includes('young'))
+            );
+            
+            if (childVoice) {
+                utterance.voice = childVoice;
+            } else {
+                // 언어에 맞는 여성 목소리 찾기
+                const femaleVoice = voices.find(voice => 
+                    voice.lang.startsWith(language.split('-')[0]) && 
+                    (voice.name.includes('female') || voice.name.includes('woman'))
+                );
+                if (femaleVoice) {
+                    utterance.voice = femaleVoice;
+                }
+            }
+            
+            speechSynthesis.speak(utterance);
         }
     </script>
 </body>
