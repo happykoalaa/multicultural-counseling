@@ -719,7 +719,7 @@
             
             <!-- Firebase 설정 섹션 (교사 화면에서만 표시) -->
             <div class="api-config">
-                <h4 style="color: #2d8a57; margin-bottom: 15px;">🔥 Firebase 설정</h4>
+                <h4 style="color: #2d8a57; margin-bottom: 15px;">🔥 Firebase 설정 (Firestore만 사용)</h4>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="font-weight: bold;">Firebase Project ID:</label>
@@ -733,13 +733,13 @@
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <label style="font-weight: bold;">Firebase Auth Domain:</label>
+                    <label style="font-weight: bold;">Firebase Auth Domain (선택사항):</label>
                     <input type="text" class="api-input" id="firebaseAuthDomain" placeholder="your-project-id.firebaseapp.com">
                 </div>
                 
-                <div style="margin-bottom: 15px;">
-                    <label style="font-weight: bold;">Firebase Storage Bucket:</label>
-                    <input type="text" class="api-input" id="firebaseStorageBucket" placeholder="your-project-id.appspot.com">
+                <div style="margin-bottom: 10px; padding: 10px; background: #e8f5e8; border-radius: 8px; font-size: 14px;">
+                    💡 <strong>팁:</strong> Storage 없이 Firestore만 사용하여 완전 무료로 이용 가능합니다!<br>
+                    오디오 파일도 Base64로 변환하여 Firestore에 저장됩니다.
                 </div>
                 
                 <button class="api-button" onclick="initializeFirebase()">🔥 Firebase 연결</button>
@@ -810,12 +810,10 @@
         let firebaseConfig = {
             projectId: localStorage.getItem('firebaseProjectId') || '',
             apiKey: localStorage.getItem('firebaseApiKey') || '',
-            authDomain: localStorage.getItem('firebaseAuthDomain') || '',
-            storageBucket: localStorage.getItem('firebaseStorageBucket') || ''
+            authDomain: localStorage.getItem('firebaseAuthDomain') || ''
         };
         
         let db = null;
-        let storage = null;
         let isFirebaseInitialized = false;
         let realtimeListener = null;
         
@@ -826,12 +824,11 @@
             serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
         };
         
-        // Firebase 초기화
+        // Firebase 초기화 (Storage 없이)
         function initializeFirebase() {
             const projectId = document.getElementById('firebaseProjectId').value;
             const apiKey = document.getElementById('firebaseApiKey').value;
             const authDomain = document.getElementById('firebaseAuthDomain').value;
-            const storageBucket = document.getElementById('firebaseStorageBucket').value;
             
             if (!projectId || !apiKey) {
                 alert('Firebase Project ID와 API Key는 필수입니다.');
@@ -841,8 +838,7 @@
             firebaseConfig = {
                 projectId: projectId,
                 apiKey: apiKey,
-                authDomain: authDomain || `${projectId}.firebaseapp.com`,
-                storageBucket: storageBucket || `${projectId}.appspot.com`
+                authDomain: authDomain || `${projectId}.firebaseapp.com`
             };
             
             try {
@@ -853,23 +849,21 @@
                     });
                 }
                 
-                // Firebase 앱 초기화
+                // Firebase 앱 초기화 (Firestore만 사용)
                 firebase.initializeApp(firebaseConfig);
                 
                 db = firebase.firestore();
-                storage = firebase.storage();
                 isFirebaseInitialized = true;
                 
                 // 설정 저장
                 localStorage.setItem('firebaseProjectId', projectId);
                 localStorage.setItem('firebaseApiKey', apiKey);
                 localStorage.setItem('firebaseAuthDomain', authDomain);
-                localStorage.setItem('firebaseStorageBucket', storageBucket);
                 
                 // 실시간 리스너 설정
                 setupRealtimeListener();
                 
-                alert('Firebase 연결이 완료되었습니다!');
+                alert('Firebase 연결이 완료되었습니다!\n※ Storage 없이 Firestore만 사용합니다.');
                 updateFirebaseStatus();
                 
                 // 기존 데이터를 Firebase로 업로드
@@ -937,9 +931,21 @@
             
             // 새로운 Firebase 기록을 로컬에 추가
             newFirebaseRecords.forEach(record => {
-                // 오디오 URL이 있으면 복원
-                if (record.audioDownloadURL) {
-                    record.audioUrl = record.audioDownloadURL;
+                // Base64 오디오 데이터를 Blob으로 복원
+                if (record.audioBase64) {
+                    try {
+                        const byteCharacters = atob(record.audioBase64.split(',')[1]);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
+                        record.audioBlob = audioBlob;
+                        record.audioUrl = URL.createObjectURL(audioBlob);
+                    } catch (error) {
+                        console.error('오디오 복원 실패:', error);
+                    }
                 }
                 counselingRecords.push(record);
             });
@@ -963,21 +969,18 @@
             }
         }
         
-        // Firebase에 기록 저장
+        // Firebase에 기록 저장 (Storage 없이)
         async function saveToFirebase(record) {
             if (!isFirebaseInitialized) return;
             
             try {
-                let audioDownloadURL = null;
-                
-                // 오디오 파일을 Firebase Storage에 업로드
+                // 오디오 파일을 Base64로 변환하여 Firestore에 직접 저장
+                let audioBase64 = null;
                 if (record.audioBlob) {
-                    const audioRef = storage.ref(`audio/${record.id}_${Date.now()}.webm`);
-                    const uploadTask = await audioRef.put(record.audioBlob);
-                    audioDownloadURL = await uploadTask.ref.getDownloadURL();
+                    audioBase64 = await blobToBase64(record.audioBlob);
                 }
                 
-                // Firestore에 메타데이터 저장
+                // Firestore에 모든 데이터 저장 (오디오 포함)
                 const docData = {
                     id: record.id,
                     timestamp: record.timestamp,
@@ -988,7 +991,7 @@
                     moodEmoji: record.moodEmoji,
                     transcript: record.transcript,
                     translation: record.translation,
-                    audioDownloadURL: audioDownloadURL,
+                    audioBase64: audioBase64, // Base64로 인코딩된 오디오 데이터
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 
@@ -996,7 +999,7 @@
                 
                 // 로컬 기록에 Firebase ID 추가
                 record.firebaseId = docRef.id;
-                record.audioDownloadURL = audioDownloadURL;
+                record.audioBase64 = audioBase64;
                 
                 return docRef.id;
                 
@@ -1056,7 +1059,6 @@
             document.getElementById('firebaseProjectId').value = firebaseConfig.projectId;
             document.getElementById('firebaseApiKey').value = firebaseConfig.apiKey;
             document.getElementById('firebaseAuthDomain').value = firebaseConfig.authDomain;
-            document.getElementById('firebaseStorageBucket').value = firebaseConfig.storageBucket;
             
             updateApiStatus();
             updateFirebaseStatus();
@@ -1073,7 +1075,6 @@
                     
                     firebase.initializeApp(firebaseConfig);
                     db = firebase.firestore();
-                    storage = firebase.storage();
                     isFirebaseInitialized = true;
                     setupRealtimeListener();
                     updateFirebaseStatus();
@@ -1661,9 +1662,9 @@
                     <div class="mood-info">
                         ${record.moodEmoji} ${record.mood} | 🌍 ${record.language}
                     </div>
-                    ${(record.audioUrl || record.audioDownloadURL) ? `
+                    ${record.audioUrl ? `
                     <div class="audio-controls">
-                        <audio controls src="${record.audioDownloadURL || record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
+                        <audio controls src="${record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
                         <button class="download-audio-btn" onclick="downloadAudio(${record.id})">
                             🎵 음성파일 다운로드
                         </button>
@@ -1784,7 +1785,7 @@
             }
         }
         
-        // 모든 기록 지우기 (Firebase + 로컬)
+        // 모든 기록 지우기 (Firestore만)
         async function clearAllRecords() {
             if (counselingRecords.length === 0) {
                 alert('지울 기록이 없습니다.');
@@ -1793,7 +1794,7 @@
             
             if (confirm('정말로 모든 상담 기록을 지우시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
                 try {
-                    // Firebase에서 삭제
+                    // Firestore에서 삭제
                     if (isFirebaseInitialized) {
                         const batch = db.batch();
                         const snapshot = await db.collection('counselingRecords').get();
@@ -1803,17 +1804,6 @@
                         });
                         
                         await batch.commit();
-                        
-                        // Storage에서 오디오 파일도 삭제
-                        for (const record of counselingRecords) {
-                            if (record.audioDownloadURL) {
-                                try {
-                                    await storage.refFromURL(record.audioDownloadURL).delete();
-                                } catch (error) {
-                                    console.error('오디오 파일 삭제 실패:', error);
-                                }
-                            }
-                        }
                     }
                     
                     // 로컬에서 삭제
