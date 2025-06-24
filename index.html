@@ -605,6 +605,13 @@
                     Tiếng Việt
                 </button>
             </div>
+            
+            <div style="margin-top: 20px;">
+                <button onclick="speakText(messages['ko-KR'].welcome, 'ko-KR')" 
+                        style="background: none; border: 2px solid #a8e6cf; border-radius: 15px; padding: 8px 15px; color: #2d8a57; font-weight: bold; cursor: pointer;">
+                    🔊 다시 듣기
+                </button>
+            </div>
         </div>
 
         <!-- 2단계: 이름 선택 -->
@@ -634,6 +641,10 @@
             </div>
             <div class="nav-buttons">
                 <button class="nav-button" onclick="goToScreen('languageScreen')">🔙 이전</button>
+                <button onclick="speakText(messages[selectedLanguageCode] ? messages[selectedLanguageCode].selectName : messages['ko-KR'].selectName, selectedLanguageCode || 'ko-KR')" 
+                        style="background: none; border: 2px solid #a8e6cf; border-radius: 15px; padding: 8px 15px; color: #2d8a57; font-weight: bold; cursor: pointer; margin: 5px;">
+                    🔊 다시 듣기
+                </button>
             </div>
         </div>
 
@@ -672,6 +683,10 @@
             </div>
             <div class="nav-buttons">
                 <button class="nav-button" onclick="goToScreen('nameScreen')">🔙 이전</button>
+                <button onclick="speakText(messages[selectedLanguageCode] ? messages[selectedLanguageCode].selectMood : messages['ko-KR'].selectMood, selectedLanguageCode || 'ko-KR')" 
+                        style="background: none; border: 2px solid #a8e6cf; border-radius: 15px; padding: 8px 15px; color: #2d8a57; font-weight: bold; cursor: pointer; margin: 5px;">
+                    🔊 다시 듣기
+                </button>
             </div>
         </div>
 
@@ -699,6 +714,10 @@
             <div class="nav-buttons">
                 <button class="nav-button" onclick="goToScreen('moodScreen')">🔙 이전</button>
                 <button class="nav-button" onclick="resetProgram()">🔄 처음부터</button>
+                <button onclick="speakText(messages[selectedLanguageCode] ? messages[selectedLanguageCode].startRecord : messages['ko-KR'].startRecord, selectedLanguageCode || 'ko-KR')" 
+                        style="background: none; border: 2px solid #a8e6cf; border-radius: 15px; padding: 8px 15px; color: #2d8a57; font-weight: bold; cursor: pointer; margin: 5px;">
+                    🔊 다시 듣기
+                </button>
             </div>
         </div>
 
@@ -805,6 +824,93 @@
         
         // 상담 기록을 저장할 배열
         let counselingRecords = [];
+        
+        // 음성 합성 설정
+        let speechSynthesis = window.speechSynthesis;
+        let currentVoices = [];
+        
+        // 음성 로드 완료 대기
+        function loadVoices() {
+            return new Promise((resolve) => {
+                if (speechSynthesis.getVoices().length > 0) {
+                    currentVoices = speechSynthesis.getVoices();
+                    resolve();
+                } else {
+                    speechSynthesis.onvoiceschanged = () => {
+                        currentVoices = speechSynthesis.getVoices();
+                        resolve();
+                    };
+                }
+            });
+        }
+        
+        // 언어별 음성 찾기
+        function getVoiceForLanguage(langCode) {
+            const voiceMap = {
+                'ko-KR': ['ko-KR', 'ko'],
+                'ru-RU': ['ru-RU', 'ru'],
+                'vi-VN': ['vi-VN', 'vi']
+            };
+            
+            const targetLangs = voiceMap[langCode] || ['ko-KR'];
+            
+            for (const targetLang of targetLangs) {
+                const voice = currentVoices.find(voice => 
+                    voice.lang.toLowerCase().startsWith(targetLang.toLowerCase())
+                );
+                if (voice) return voice;
+            }
+            
+            // 기본값: 첫 번째 사용 가능한 음성
+            return currentVoices[0] || null;
+        }
+        
+        // 텍스트를 음성으로 재생
+        function speakText(text, langCode = 'ko-KR') {
+            // 기존 음성 중지
+            speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voice = getVoiceForLanguage(langCode);
+            
+            if (voice) {
+                utterance.voice = voice;
+                utterance.lang = voice.lang;
+            } else {
+                utterance.lang = langCode;
+            }
+            
+            utterance.rate = 0.9;
+            utterance.pitch = 1.1;
+            utterance.volume = 0.8;
+            
+            speechSynthesis.speak(utterance);
+        }
+        
+        // 언어별 안내 문구
+        const messages = {
+            'ko-KR': {
+                welcome: '안녕! 나는 코알라야! 어떤 언어로 이야기할까?',
+                selectName: '좋아! 이제 이름을 알려줘!',
+                selectMood: '오늘 기분은 어떤가요?',
+                startRecord: '코알라에게 이야기해줘! 편안하게 이야기해줘. 잘 들을게!',
+                goodbye: '오늘 이야기 즐거웠어! 다음에 또 만나!'
+            },
+            'ru-RU': {
+                welcome: 'Привет! Я Коала! На каком языке ты хочешь говорить?',
+                selectName: 'Отлично! Теперь скажи мне своё имя!',
+                selectMood: 'Как ты себя чувствуешь сегодня?',
+                startRecord: 'Расскажи Коале свою историю! Говори спокойно, я хорошо слушаю!',
+                goodbye: 'Сегодня было приятно поговорить! Увидимся снова!'
+            },
+            'vi-VN': {
+                welcome: 'Xin chào! Tôi là Koala! Bạn muốn nói chuyện bằng ngôn ngữ nào?',
+                selectName: 'Tuyệt! Bây giờ hãy cho tôi biết tên của bạn!',
+                selectMood: 'Hôm nay bạn cảm thấy thế nào?',
+                startRecord: 'Hãy kể cho Koala nghe câu chuyện của bạn! Hãy nói một cách thoải mái, tôi sẽ lắng nghe!',
+                goodbye: 'Hôm nay thật vui khi được trò chuyện! Hẹn gặp lại bạn!'
+            }
+        };
         
         // Firebase 및 API 설정
         let firebaseConfig = {
@@ -1049,7 +1155,10 @@
         }
         
         // 페이지 로드 시 설정 복원 및 자동 초기화
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            // 음성 로드
+            await loadVoices();
+            
             // API 설정 복원
             document.getElementById('speechApiKey').value = apiSettings.speechApiKey;
             document.getElementById('translateApiKey').value = apiSettings.translateApiKey;
@@ -1087,6 +1196,11 @@
             
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
+            
+            // 시작 음성 안내
+            setTimeout(() => {
+                speakText(messages['ko-KR'].welcome, 'ko-KR');
+            }, 1000);
         });
         
         // 로컬 저장소에서 상담 기록 불러오기
@@ -1192,6 +1306,12 @@
         function selectLanguage(langCode, langName) {
             selectedLanguageCode = langCode;
             selectedLanguage = langName;
+            
+            // 선택된 언어로 음성 안내
+            setTimeout(() => {
+                speakText(messages[langCode].selectName, langCode);
+            }, 500);
+            
             goToScreen('nameScreen');
         }
         
@@ -1199,6 +1319,12 @@
         function selectName(name) {
             selectedName = name;
             document.getElementById('greetingText').textContent = `안녕 ${name}!`;
+            
+            // 선택된 언어로 기분 묻기 음성 안내
+            setTimeout(() => {
+                speakText(messages[selectedLanguageCode].selectMood, selectedLanguageCode);
+            }, 500);
+            
             goToScreen('moodScreen');
         }
         
@@ -1208,6 +1334,12 @@
             selectedMoodEmoji = emoji;
             
             goToScreen('recordScreen');
+            
+            // 녹음 화면 음성 안내
+            setTimeout(() => {
+                speakText(messages[selectedLanguageCode].startRecord, selectedLanguageCode);
+            }, 1000);
+            
             initializeRecorder();
         }
         
@@ -1330,17 +1462,17 @@
                     transcriptText = '음성 인식 API가 설정되지 않았습니다.';
                 }
                 
-                // 한국어가 아닐 때만 번역
-                if (apiSettings.translateApiKey && transcriptText && selectedLanguageCode !== 'ko-KR') {
+                // 한국어인 경우 번역하지 않고 원본만 저장
+                if (selectedLanguageCode === 'ko-KR') {
+                    translationText = transcriptText; // 원본 그대로
+                } else if (apiSettings.translateApiKey && transcriptText) {
+                    // 다른 언어는 한국어로 번역
                     try {
                         translationText = await translateText(transcriptText, selectedLanguageCode, 'ko');
                     } catch (error) {
                         console.error('Translation error:', error);
                         translationText = '번역에 실패했습니다.';
                     }
-                } else if (selectedLanguageCode === 'ko-KR') {
-                    // 한국어인 경우 번역하지 않고 원본 그대로 사용
-                    translationText = transcriptText;
                 } else {
                     translationText = '번역 API가 설정되지 않았습니다.';
                 }
@@ -1351,10 +1483,15 @@
                 // 종료 화면으로 이동
                 goToScreen('endScreen');
                 
-                // 3초 후 자동으로 처음 화면으로
+                // 작별 인사 음성 재생
+                setTimeout(() => {
+                    speakText(messages[selectedLanguageCode].goodbye, selectedLanguageCode);
+                }, 500);
+                
+                // 5초 후 자동으로 처음 화면으로 (음성 완료 후)
                 setTimeout(() => {
                     resetProgram();
-                }, 3000);
+                }, 5000);
                 
             } catch (error) {
                 showError('처리 중 문제가 생겼어요: ' + error.message);
@@ -1832,6 +1969,9 @@
         
         // 프로그램 리셋
         function resetProgram() {
+            // 음성 중지
+            speechSynthesis.cancel();
+            
             selectedLanguage = '';
             selectedLanguageCode = '';
             selectedName = '';
@@ -1841,6 +1981,11 @@
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
+            
+            // 처음 화면 음성 안내
+            setTimeout(() => {
+                speakText(messages['ko-KR'].welcome, 'ko-KR');
+            }, 1000);
         }
         
         // 기록 새로고침 (실시간 동기화)
