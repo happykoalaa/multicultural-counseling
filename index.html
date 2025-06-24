@@ -10,6 +10,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
         * {
             box-sizing: border-box;
@@ -771,7 +774,7 @@
             
             <div class="teacher-nav">
                 <button class="teacher-button" onclick="goToScreen('languageScreen')">🔙 학생 화면으로</button>
-                <button class="teacher-button" onclick="exportAllRecords()">📋 전체 기록 내보내기</button>
+                <button class="teacher-button" onclick="exportAllRecords()">📊 엑셀 파일 다운로드</button>
                 <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
                 <button class="teacher-button" onclick="syncAllDevices()">🔄 모든 기기 동기화</button>
                 <button class="teacher-button" onclick="refreshRecords()">📱 실시간 새로고침</button>
@@ -843,10 +846,15 @@
             };
             
             try {
-                // Firebase 앱 초기화
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
+                // 기존 Firebase 앱이 있으면 삭제
+                if (firebase.apps.length > 0) {
+                    firebase.apps.forEach(app => {
+                        app.delete();
+                    });
                 }
+                
+                // Firebase 앱 초기화
+                firebase.initializeApp(firebaseConfig);
                 
                 db = firebase.firestore();
                 storage = firebase.storage();
@@ -1056,14 +1064,23 @@
             // Firebase 자동 초기화 (설정이 있는 경우)
             if (firebaseConfig.projectId && firebaseConfig.apiKey) {
                 try {
+                    // 기존 앱이 있으면 삭제 후 재시작
+                    if (firebase.apps.length > 0) {
+                        firebase.apps.forEach(app => {
+                            app.delete();
+                        });
+                    }
+                    
                     firebase.initializeApp(firebaseConfig);
                     db = firebase.firestore();
                     storage = firebase.storage();
                     isFirebaseInitialized = true;
                     setupRealtimeListener();
                     updateFirebaseStatus();
+                    console.log('Firebase 자동 초기화 성공');
                 } catch (error) {
                     console.error('Firebase 자동 초기화 실패:', error);
+                    isFirebaseInitialized = false;
                 }
             }
             
@@ -1688,38 +1705,83 @@
             document.body.removeChild(a);
         }
         
-        // 전체 기록 내보내기
+        // 전체 기록 내보내기 (엑셀 파일)
         function exportAllRecords() {
             if (counselingRecords.length === 0) {
                 alert('내보낼 상담 기록이 없습니다.');
                 return;
             }
             
-            let exportText = '코알라 상담 프로그램 - 전체 기록\n';
-            exportText += '=====================================\n\n';
-            
-            counselingRecords.forEach((record, index) => {
-                exportText += `${index + 1}. 상담 기록\n`;
-                exportText += `날짜: ${new Date(record.timestamp).toLocaleString('ko-KR')}\n`;
-                exportText += `학생: ${record.student}\n`;
-                exportText += `언어: ${record.language}\n`;
-                exportText += `기분: ${record.mood} ${record.moodEmoji}\n\n`;
-                exportText += `원본 내용:\n${record.transcript}\n\n`;
-                exportText += `한국어 번역:\n${record.translation}\n\n`;
-                exportText += '-------------------------------------\n\n';
-            });
-            
-            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `코알라_상담기록_전체_${new Date().toISOString().slice(0,10)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            alert('전체 상담 기록이 저장되었습니다!');
+            try {
+                // 엑셀 데이터 준비
+                const excelData = [];
+                
+                // 헤더 추가
+                excelData.push([
+                    '번호',
+                    '날짜',
+                    '시간', 
+                    '학생명',
+                    '언어',
+                    '기분',
+                    '원본 내용',
+                    '한국어 번역',
+                    '동기화 상태'
+                ]);
+                
+                // 데이터 추가
+                counselingRecords.forEach((record, index) => {
+                    const recordDate = new Date(record.timestamp);
+                    const dateStr = recordDate.toLocaleDateString('ko-KR');
+                    const timeStr = recordDate.toLocaleTimeString('ko-KR');
+                    const syncStatus = record.firebaseId ? '클라우드 동기화됨' : '로컬만 저장됨';
+                    
+                    excelData.push([
+                        index + 1,
+                        dateStr,
+                        timeStr,
+                        record.student,
+                        record.language,
+                        `${record.mood} ${record.moodEmoji}`,
+                        record.transcript,
+                        record.translation,
+                        syncStatus
+                    ]);
+                });
+                
+                // 엑셀 워크시트 생성
+                const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+                
+                // 컬럼 너비 설정
+                worksheet['!cols'] = [
+                    { width: 8 },   // 번호
+                    { width: 12 },  // 날짜
+                    { width: 10 },  // 시간
+                    { width: 15 },  // 학생명
+                    { width: 10 },  // 언어
+                    { width: 12 },  // 기분
+                    { width: 40 },  // 원본 내용
+                    { width: 40 },  // 번역
+                    { width: 15 }   // 동기화 상태
+                ];
+                
+                // 워크북 생성
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, '상담기록');
+                
+                // 파일명 생성
+                const today = new Date().toISOString().slice(0, 10);
+                const filename = `코알라_상담기록_${today}.xlsx`;
+                
+                // 파일 다운로드
+                XLSX.writeFile(workbook, filename);
+                
+                alert(`엑셀 파일이 다운로드되었습니다!\n파일명: ${filename}`);
+                
+            } catch (error) {
+                console.error('엑셀 파일 생성 실패:', error);
+                alert('엑셀 파일 생성 중 오류가 발생했습니다: ' + error.message);
+            }
         }
         
         // 모든 기록 지우기 (Firebase + 로컬)
