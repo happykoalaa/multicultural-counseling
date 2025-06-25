@@ -605,13 +605,6 @@
                     Tiếng Việt
                 </button>
             </div>
-            
-            <!-- 음성 안내 설정 -->
-            <div style="margin-top: 20px;">
-                <button class="nav-button" onclick="playScreenVoice('languageScreen', 'ko-KR')" style="font-size: 14px; padding: 8px 15px;">
-                    🔊 다시 듣기
-                </button>
-            </div>
         </div>
 
         <!-- 2단계: 이름 선택 -->
@@ -758,15 +751,20 @@
                 <h4 style="color: #2d8a57; margin-bottom: 15px;">🔧 API 설정</h4>
                 
                 <div style="margin-bottom: 15px;">
-                    <label style="font-weight: bold;">Google Cloud Speech-to-Text API 키:</label>
+                    <label style="font-weight: bold;">Google Cloud API 키 (Speech & TTS):</label>
                     <span class="status-indicator" id="speechStatus"></span>
-                    <input type="password" class="api-input" id="speechApiKey" placeholder="API 키를 입력하세요">
+                    <input type="password" class="api-input" id="speechApiKey" placeholder="Speech-to-Text & Text-to-Speech API 키">
                 </div>
                 
                 <div style="margin-bottom: 15px;">
                     <label style="font-weight: bold;">Google Translate API 키:</label>
                     <span class="status-indicator" id="translateStatus"></span>
                     <input type="password" class="api-input" id="translateApiKey" placeholder="API 키를 입력하세요">
+                </div>
+                
+                <div style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-radius: 8px; font-size: 14px;">
+                    🔊 <strong>음성 안내:</strong> Google Cloud Speech-to-Text API 키가 설정되면 아이 목소리로 안내음성이 나옵니다!<br>
+                    언어를 선택하면 자동으로 해당 언어로 안내됩니다.
                 </div>
                 
                 <div style="margin-bottom: 15px;">
@@ -777,6 +775,7 @@
                 
                 <button class="api-button" onclick="saveApiSettings()">💾 설정 저장</button>
                 <button class="api-button" onclick="testApiConnections()">🔍 연결 테스트</button>
+                <button class="api-button" onclick="testVoiceDemo()">🔊 음성 테스트</button>
             </div>
             
             <div class="teacher-nav">
@@ -797,123 +796,6 @@
     </div>
 
     <script>
-        // 음성 안내 시스템
-        let currentVoice = null;
-        let speechSynthesis = window.speechSynthesis;
-        let availableVoices = [];
-        
-        // 언어별 음성 설정
-        const voiceSettings = {
-            'ko-KR': {
-                lang: 'ko-KR',
-                text: {
-                    welcome: '안녕! 나는 코알라야! 어떤 언어로 이야기할까?',
-                    selectName: '좋아! 이제 이름을 알려줘!',
-                    selectMood: '오늘 기분은 어떤가요?',
-                    readyRecord: '편안하게 이야기해줘. 잘 들을게!',
-                    goodbye: '오늘 이야기 즐거웠어! 다음에 또 만나!'
-                }
-            },
-            'vi-VN': {
-                lang: 'vi-VN',
-                text: {
-                    welcome: 'Xin chào! Tôi là Koala! Bạn muốn nói tiếng gì?',
-                    selectName: 'Tuyệt vời! Bây giờ hãy cho tôi biết tên của bạn!',
-                    selectMood: 'Hôm nay bạn cảm thấy thế nào?',
-                    readyRecord: 'Hãy nói chuyện thoải mái nhé. Tôi sẽ lắng nghe!',
-                    goodbye: 'Câu chuyện hôm nay thật vui! Hẹn gặp lại!'
-                }
-            },
-            'ru-RU': {
-                lang: 'ru-RU',
-                text: {
-                    welcome: 'Привет! Я Коала! На каком языке будем говорить?',
-                    selectName: 'Отлично! Теперь скажи мне своё имя!',
-                    selectMood: 'Как дела сегодня?',
-                    readyRecord: 'Рассказывай спокойно. Я слушаю!',
-                    goodbye: 'Сегодняшний разговор был замечательным! Увидимся!'
-                }
-            }
-        };
-        
-        // 음성 초기화
-        function initializeVoices() {
-            availableVoices = speechSynthesis.getVoices();
-            
-            // 언어별 최적 음성 찾기
-            Object.keys(voiceSettings).forEach(langCode => {
-                const setting = voiceSettings[langCode];
-                
-                // 해당 언어의 음성 찾기 (여성, 어린이 음성 우선)
-                let voice = availableVoices.find(v => 
-                    v.lang.startsWith(setting.lang.split('-')[0]) && 
-                    (v.name.includes('Female') || v.name.includes('Woman') || v.name.includes('Girl'))
-                );
-                
-                // 여성 음성이 없으면 해당 언어의 첫 번째 음성 사용
-                if (!voice) {
-                    voice = availableVoices.find(v => v.lang.startsWith(setting.lang.split('-')[0]));
-                }
-                
-                setting.voice = voice;
-            });
-        }
-        
-        // 음성으로 텍스트 읽기
-        function speakText(text, langCode = 'ko-KR') {
-            // 기존 음성 중지
-            speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            const setting = voiceSettings[langCode];
-            
-            if (setting && setting.voice) {
-                utterance.voice = setting.voice;
-                utterance.lang = setting.lang;
-            } else {
-                utterance.lang = langCode;
-            }
-            
-            // 아이 목소리에 가깝게 설정
-            utterance.pitch = 1.5;  // 높은 음조
-            utterance.rate = 0.9;   // 조금 느린 속도
-            utterance.volume = 0.8; // 적당한 볼륨
-            
-            speechSynthesis.speak(utterance);
-        }
-        
-        // 화면별 음성 안내
-        function playScreenVoice(screenId, langCode = selectedLanguageCode || 'ko-KR') {
-            const setting = voiceSettings[langCode];
-            if (!setting) return;
-            
-            let text = '';
-            switch(screenId) {
-                case 'languageScreen':
-                    text = setting.text.welcome;
-                    break;
-                case 'nameScreen':
-                    text = setting.text.selectName;
-                    break;
-                case 'moodScreen':
-                    text = setting.text.selectMood;
-                    break;
-                case 'recordScreen':
-                    text = setting.text.readyRecord;
-                    break;
-                case 'endScreen':
-                    text = setting.text.goodbye;
-                    break;
-            }
-            
-            if (text) {
-                // 화면 전환 후 잠시 기다렸다가 음성 재생
-                setTimeout(() => {
-                    speakText(text, langCode);
-                }, 500);
-            }
-        }
-        
         // 전역 변수
         let selectedLanguage = '';
         let selectedLanguageCode = '';
@@ -930,7 +812,129 @@
         // 상담 기록을 저장할 배열
         let counselingRecords = [];
         
-        // Firebase 및 API 설정
+        // 음성 안내 설정
+        let currentVoiceLanguage = 'ko-KR';
+        let speechQueue = [];
+        let isSpeaking = false;
+        
+        // Google Text-to-Speech 음성 재생
+        async function speakText(text, languageCode = currentVoiceLanguage) {
+            if (!apiSettings.speechApiKey) {
+                console.log('TTS API 키가 설정되지 않음');
+                return;
+            }
+            
+            try {
+                // 음성 큐에 추가
+                speechQueue.push({ text, languageCode });
+                
+                // 이미 재생 중이면 대기
+                if (isSpeaking) return;
+                
+                // 음성 재생 시작
+                await processSpeechQueue();
+                
+            } catch (error) {
+                console.error('TTS 오류:', error);
+            }
+        }
+        
+        // 음성 큐 처리
+        async function processSpeechQueue() {
+            if (speechQueue.length === 0 || isSpeaking) return;
+            
+            isSpeaking = true;
+            const { text, languageCode } = speechQueue.shift();
+            
+            try {
+                // Google TTS API 호출
+                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiSettings.speechApiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        input: { text: text },
+                        voice: {
+                            languageCode: languageCode,
+                            name: getChildVoiceName(languageCode),
+                            ssmlGender: 'FEMALE'
+                        },
+                        audioConfig: {
+                            audioEncoding: 'MP3',
+                            pitch: 4.0,     // 높은 음성 (아이 목소리)
+                            speakingRate: 0.9  // 조금 느리게
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    const audioData = result.audioContent;
+                    
+                    // Base64 오디오를 재생
+                    const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
+                    audio.onended = () => {
+                        isSpeaking = false;
+                        // 큐에 다음 음성이 있으면 재생
+                        processSpeechQueue();
+                    };
+                    audio.play();
+                } else {
+                    console.error('TTS API 오류:', response.status);
+                    isSpeaking = false;
+                    processSpeechQueue();
+                }
+                
+            } catch (error) {
+                console.error('TTS 처리 오류:', error);
+                isSpeaking = false;
+                processSpeechQueue();
+            }
+        }
+        
+        // 언어별 아이 목소리 선택
+        function getChildVoiceName(languageCode) {
+            const childVoices = {
+                'ko-KR': 'ko-KR-Wavenet-A',  // 한국어 여성 목소리
+                'vi-VN': 'vi-VN-Wavenet-A',  // 베트남어 여성 목소리
+                'ru-RU': 'ru-RU-Wavenet-A'   // 러시아어 여성 목소리
+            };
+            return childVoices[languageCode] || 'ko-KR-Wavenet-A';
+        }
+        
+        // 언어별 안내 메시지
+        function getVoiceMessage(messageKey, languageCode) {
+            const messages = {
+                welcome: {
+                    'ko-KR': '안녕! 나는 코알라야! 어떤 언어로 이야기할까?',
+                    'vi-VN': 'Xin chào! Tôi là Koala! Bạn muốn nói tiếng gì?',
+                    'ru-RU': 'Привет! Я Коала! На каком языке будем говорить?'
+                },
+                selectName: {
+                    'ko-KR': '좋아! 이제 이름을 알려줘!',
+                    'vi-VN': 'Tuyệt! Bây giờ hãy cho tôi biết tên bạn!',
+                    'ru-RU': 'Отлично! Теперь скажи мне своё имя!'
+                },
+                selectMood: {
+                    'ko-KR': '오늘 기분은 어떤가요?',
+                    'vi-VN': 'Hôm nay bạn cảm thấy thế nào?',
+                    'ru-RU': 'Как твоё настроение сегодня?'
+                },
+                startRecording: {
+                    'ko-KR': '편안하게 이야기해줘. 잘 들을게!',
+                    'vi-VN': 'Hãy thoải mái kể cho tôi nghe nhé!',
+                    'ru-RU': 'Расскажи мне свою историю, я внимательно слушаю!'
+                },
+                goodbye: {
+                    'ko-KR': '오늘 이야기 즐거웠어! 다음에 또 만나!',
+                    'vi-VN': 'Hôm nay thật vui! Hẹn gặp lại bạn!',
+                    'ru-RU': 'Было очень интересно! Увидимся снова!'
+                }
+            };
+            
+            return messages[messageKey]?.[languageCode] || messages[messageKey]?.[currentVoiceLanguage] || '';
+        }
         let firebaseConfig = {
             projectId: localStorage.getItem('firebaseProjectId') || '',
             apiKey: localStorage.getItem('firebaseApiKey') || '',
@@ -1212,24 +1216,10 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 음성 초기화
-            initializeVoices();
-            
-            // 음성이 로드되지 않은 경우를 위한 재시도
-            if (availableVoices.length === 0) {
-                setTimeout(() => {
-                    initializeVoices();
-                }, 1000);
-            }
-            
-            // 첫 화면 음성 안내
+            // 환영 인사 (한국어로 시작)
             setTimeout(() => {
-                playScreenVoice('languageScreen', 'ko-KR');
+                speakText(getVoiceMessage('welcome', 'ko-KR'), 'ko-KR');
             }, 1000);
-        });
-        
-        // 음성 목록이 변경될 때마다 재초기화
-        speechSynthesis.onvoiceschanged = initializeVoices;
         });
         
         // 로컬 저장소에서 상담 기록 불러오기
@@ -1316,11 +1306,8 @@
             });
         }
         
-        // 화면 전환 함수 (음성 안내 포함)
+        // 화면 전환 함수
         function goToScreen(screenId) {
-            // 기존 음성 중지
-            speechSynthesis.cancel();
-            
             document.querySelectorAll('.screen').forEach(screen => {
                 screen.classList.remove('active');
             });
@@ -1329,12 +1316,8 @@
             // 첫 번째 화면(언어선택)에서만 교사 접근 버튼 표시
             if (screenId === 'languageScreen') {
                 document.getElementById('teacherAccessBtn').style.display = 'block';
-                // 언어선택 화면에서는 한국어로 안내
-                playScreenVoice(screenId, 'ko-KR');
             } else {
                 document.getElementById('teacherAccessBtn').style.display = 'none';
-                // 다른 화면에서는 선택된 언어로 안내
-                playScreenVoice(screenId, selectedLanguageCode);
             }
         }
         
@@ -1342,6 +1325,11 @@
         function selectLanguage(langCode, langName) {
             selectedLanguageCode = langCode;
             selectedLanguage = langName;
+            currentVoiceLanguage = langCode; // 음성 언어 설정
+            
+            // 언어 선택 안내 음성
+            speakText(getVoiceMessage('selectName', langCode), langCode);
+            
             goToScreen('nameScreen');
         }
         
@@ -1349,6 +1337,10 @@
         function selectName(name) {
             selectedName = name;
             document.getElementById('greetingText').textContent = `안녕 ${name}!`;
+            
+            // 기분 선택 안내 음성
+            speakText(getVoiceMessage('selectMood', currentVoiceLanguage), currentVoiceLanguage);
+            
             goToScreen('moodScreen');
         }
         
@@ -1356,6 +1348,9 @@
         function selectMood(mood, emoji) {
             selectedMood = mood;
             selectedMoodEmoji = emoji;
+            
+            // 녹음 시작 안내 음성
+            speakText(getVoiceMessage('startRecording', currentVoiceLanguage), currentVoiceLanguage);
             
             goToScreen('recordScreen');
             initializeRecorder();
@@ -1489,14 +1484,17 @@
                         translationText = '번역에 실패했습니다.';
                     }
                 } else if (selectedLanguageCode === 'ko-KR') {
-                    // 한국어인 경우 번역하지 않고 빈 문자열로 저장
-                    translationText = '';
+                    // 한국어인 경우 번역하지 않고 원본 그대로 사용
+                    translationText = transcriptText;
                 } else {
                     translationText = '번역 API가 설정되지 않았습니다.';
                 }
                 
                 // 상담 기록에 자동 저장
                 await saveCounselingRecord(transcriptText, translationText, audioBlob);
+                
+                // 종료 인사 음성
+                speakText(getVoiceMessage('goodbye', currentVoiceLanguage), currentVoiceLanguage);
                 
                 // 종료 화면으로 이동
                 goToScreen('endScreen');
@@ -1824,12 +1822,10 @@
                         <h5 style="color: #2d8a57; margin-bottom: 8px;">📝 원본 내용:</h5>
                         <p style="background: #f0f8f5; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.transcript}</p>
                     </div>
-                    ${record.translation ? `
                     <div style="margin-top: 10px;">
                         <h5 style="color: #2d8a57; margin-bottom: 8px;">🔄 한국어 번역:</h5>
                         <p style="background: #e8f5f3; padding: 10px; border-radius: 8px; line-height: 1.5;">${record.translation}</p>
                     </div>
-                    ` : ''}
                 `;
                 recordsList.appendChild(div);
             });
@@ -1897,7 +1893,7 @@
                         record.language,
                         `${record.mood} ${record.moodEmoji}`,
                         record.transcript,
-                        record.translation || '(번역 없음)', // 한국어인 경우 번역 없음 표시
+                        record.translation,
                         syncStatus
                     ]);
                 });
@@ -1989,10 +1985,16 @@
             selectedName = '';
             selectedMood = '';
             selectedMoodEmoji = '';
+            currentVoiceLanguage = 'ko-KR'; // 음성 언어 초기화
             
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
+            
+            // 환영 인사 (한국어로 초기화)
+            setTimeout(() => {
+                speakText(getVoiceMessage('welcome', 'ko-KR'), 'ko-KR');
+            }, 500);
         }
         
         // 기록 새로고침 (실시간 동기화)
@@ -2006,6 +2008,22 @@
                 updateTeacherScreen();
                 alert('로컬 기록이 새로고침되었습니다!');
             }
+        }
+        
+        // 음성 테스트
+        function testVoiceDemo() {
+            if (!apiSettings.speechApiKey) {
+                alert('먼저 Google Cloud API 키를 설정해주세요.');
+                return;
+            }
+            
+            speakText('안녕하세요! 코알라 음성 테스트입니다!', 'ko-KR');
+            setTimeout(() => {
+                speakText('Xin chào! Đây là kiểm tra giọng nói Koala!', 'vi-VN');
+            }, 3000);
+            setTimeout(() => {
+                speakText('Привет! Это голосовой тест Коалы!', 'ru-RU');
+            }, 6000);
         }
     </script>
 </body>
