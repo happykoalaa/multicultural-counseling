@@ -862,8 +862,7 @@
                 <button class="teacher-button" onclick="exportAllRecords()">📊 엑셀 파일 다운로드</button>
                 <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
                 <button class="teacher-button" onclick="syncAllDevices()">🔄 모든 기기 동기화</button>
-                <button class="teacher-button" onclick="refreshRecords()">📱 새로고침</button>
-                <button class="teacher-button" onclick="restoreAllAudio()">🎵 전체 오디오 복원</button>
+                <button class="teacher-button" onclick="refreshRecords()">📱 실시간 새로고침</button>
             </div>
             
             <div id="allRecordsContainer">
@@ -1075,11 +1074,6 @@
                 counselingRecords.push(record);
             });
             
-            // 중복 제거 및 정렬
-            counselingRecords = counselingRecords.filter((record, index, self) => 
-                index === self.findIndex(r => r.id === record.id)
-            );
-            
             // 로컬 저장소 업데이트
             saveRecordsToLocal();
         }
@@ -1099,7 +1093,7 @@
             }
         }
         
-        // Firebase에 기록 저장 (Storage 없이)
+        // Firebase에 기록 저장 (Storage 없이, 오디오 파일 포함)
         async function saveToFirebase(record) {
             if (!isFirebaseInitialized) return;
             
@@ -1139,6 +1133,69 @@
             }
         }
         
+        // Firebase에 클로바 더빙 파일들 저장/동기화
+        async function syncKoreanAudioToFirebase() {
+            if (!isFirebaseInitialized) return;
+            
+            try {
+                const audioData = {};
+                Object.keys(koreanAudioFiles).forEach(screen => {
+                    if (voiceSettings.koreanAudioData[screen]) {
+                        audioData[screen] = voiceSettings.koreanAudioData[screen];
+                    }
+                });
+                
+                if (Object.keys(audioData).length > 0) {
+                    await db.collection('systemSettings').doc('koreanAudio').set({
+                        audioFiles: audioData,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log('클로바 더빙 파일 Firebase 동기화 완료');
+                }
+            } catch (error) {
+                console.error('클로바 더빙 파일 동기화 실패:', error);
+            }
+        }
+        
+        // Firebase에서 클로바 더빙 파일들 불러오기
+        async function loadKoreanAudioFromFirebase() {
+            if (!isFirebaseInitialized) return;
+            
+            try {
+                const doc = await db.collection('systemSettings').doc('koreanAudio').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    const audioFiles = data.audioFiles || {};
+                    
+                    Object.keys(audioFiles).forEach(screen => {
+                        if (audioFiles[screen] && !voiceSettings.koreanAudioData[screen]) {
+                            // 로컬에 없는 파일만 복원
+                            voiceSettings.koreanAudioData[screen] = audioFiles[screen];
+                            localStorage.setItem(`koreanAudioData_${screen}`, audioFiles[screen]);
+                            
+                            try {
+                                const byteCharacters = atob(audioFiles[screen].split(',')[1]);
+                                const byteNumbers = new Array(byteCharacters.length);
+                                for (let i = 0; i < byteCharacters.length; i++) {
+                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                }
+                                const byteArray = new Uint8Array(byteNumbers);
+                                koreanAudioFiles[screen].blob = new Blob([byteArray], { type: 'audio/mpeg' });
+                                koreanAudioFiles[screen].url = URL.createObjectURL(koreanAudioFiles[screen].blob);
+                            } catch (error) {
+                                console.error(`${screen} 음성 파일 복원 실패:`, error);
+                            }
+                        }
+                    });
+                    
+                    updateVoiceStatus();
+                    console.log('Firebase에서 클로바 더빙 파일 로드 완료');
+                }
+            } catch (error) {
+                console.error('클로바 더빙 파일 로드 실패:', error);
+            }
+        }
+        
         // Firebase 상태 업데이트
         function updateFirebaseStatus() {
             document.getElementById('firebaseStatus').className = 
@@ -1160,50 +1217,17 @@
                 
                 const firebaseRecords = [];
                 snapshot.forEach((doc) => {
-                    const data = doc.data();
                     firebaseRecords.push({
                         firebaseId: doc.id,
-                        ...data
+                        ...doc.data()
                     });
                 });
                 
-                // 모든 Firebase 기록의 오디오 복원
-                for (const record of firebaseRecords) {
-                    if (record.audioBase64 && !record.audioUrl) {
-                        try {
-                            const byteCharacters = atob(record.audioBase64.split(',')[1]);
-                            const byteNumbers = new Array(byteCharacters.length);
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                                byteNumbers[i] = byteCharacters.charCodeAt(i);
-                            }
-                            const byteArray = new Uint8Array(byteNumbers);
-                            const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
-                            record.audioBlob = audioBlob;
-                            record.audioUrl = URL.createObjectURL(audioBlob);
-                        } catch (error) {
-                            console.error('오디오 복원 실패:', error);
-                        }
-                    }
-                }
-                
-                // 로컬 기록과 병합 (중복 제거)
-                const allRecords = [...counselingRecords];
-                
-                firebaseRecords.forEach(fbRecord => {
-                    const existingIndex = allRecords.findIndex(r => r.id === fbRecord.id);
-                    if (existingIndex === -1) {
-                        allRecords.push(fbRecord);
-                    } else {
-                        // 기존 기록 업데이트 (Firebase 데이터로)
-                        allRecords[existingIndex] = { ...allRecords[existingIndex], ...fbRecord };
-                    }
-                });
-                
-                counselingRecords = allRecords;
-                saveRecordsToLocal();
+                // 로컬 기록과 병합
+                mergeFirebaseRecords(firebaseRecords);
                 updateTeacherScreen();
                 
-                alert(`모든 기기와 동기화가 완료되었습니다!\n총 ${counselingRecords.length}개의 상담 기록이 있습니다.`);
+                alert('모든 기기와 동기화가 완료되었습니다!');
                 
             } catch (error) {
                 console.error('동기화 실패:', error);
@@ -1268,6 +1292,10 @@
                     isFirebaseInitialized = true;
                     setupRealtimeListener();
                     updateFirebaseStatus();
+                    
+                    // 클로바 더빙 파일들 로드
+                    await loadKoreanAudioFromFirebase();
+                    
                     console.log('Firebase 자동 초기화 성공');
                 } catch (error) {
                     console.error('Firebase 자동 초기화 실패:', error);
@@ -1284,11 +1312,12 @@
             }, 3000);
         });
         
-        // 음성 안내 재생
+        // 음성 안내 재생 (태블릿 호환성 개선)
         async function playVoiceGuide(screen, language) {
             // 이전 음성 정지
             if (currentAudio) {
                 currentAudio.pause();
+                currentAudio.currentTime = 0;
                 currentAudio = null;
             }
             
@@ -1296,18 +1325,124 @@
                 if (language === 'ko' && koreanAudioFiles[screen].url) {
                     // 한국어: 업로드된 클로바 더빙 파일 재생
                     currentAudio = new Audio(koreanAudioFiles[screen].url);
-                    await currentAudio.play();
+                    currentAudio.preload = 'auto';
+                    
+                    // 태블릿 호환성을 위한 user interaction 체크
+                    const playPromise = currentAudio.play();
+                    if (playPromise !== undefined) {
+                        await playPromise;
+                    }
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
-                    // 다른 언어: Google TTS API 사용
+                    // 다른 언어: 캐시된 TTS 또는 새로 생성
                     const message = voiceMessages[language][screen];
                     if (message) {
-                        const audioUrl = await generateTTSAudio(message, language);
-                        currentAudio = new Audio(audioUrl);
-                        await currentAudio.play();
+                        const audioUrl = await generateTTSAudioCached(message, language, screen);
+                        if (audioUrl) {
+                            currentAudio = new Audio(audioUrl);
+                            currentAudio.preload = 'auto';
+                            
+                            // 태블릿에서의 재생 안정성 개선
+                            setTimeout(async () => {
+                                try {
+                                    const playPromise = currentAudio.play();
+                                    if (playPromise !== undefined) {
+                                        await playPromise;
+                                    }
+                                } catch (error) {
+                                    console.warn('음성 재생 실패, 재시도 중:', error);
+                                    // 재시도 로직
+                                    setTimeout(() => {
+                                        if (currentAudio) {
+                                            currentAudio.play().catch(e => console.error('재시도 실패:', e));
+                                        }
+                                    }, 100);
+                                }
+                            }, 200);
+                        }
+                    }
+                } else if (language === 'ko') {
+                    // 클로바 더빙 파일이 없으면 Firebase에서 로드 시도
+                    await loadKoreanAudioFromFirebase();
+                    if (koreanAudioFiles[screen].url) {
+                        currentAudio = new Audio(koreanAudioFiles[screen].url);
+                        currentAudio.preload = 'auto';
+                        const playPromise = currentAudio.play();
+                        if (playPromise !== undefined) {
+                            await playPromise;
+                        }
                     }
                 }
             } catch (error) {
                 console.error('음성 재생 실패:', error);
+            }
+        }
+        
+        // TTS 오디오 생성 및 캐시 (태블릿 호환성 개선)
+        let ttsCache = {};
+        
+        async function generateTTSAudioCached(text, language, screen) {
+            const cacheKey = `${language}_${screen}`;
+            
+            // 캐시에서 확인
+            if (ttsCache[cacheKey]) {
+                return ttsCache[cacheKey];
+            }
+            
+            try {
+                if (!voiceSettings.ttsApiKey) {
+                    throw new Error('TTS API key not configured');
+                }
+                
+                const languageCode = language === 'ru' ? 'ru-RU' : 'vi-VN';
+                const voiceName = language === 'ru' ? 'ru-RU-Standard-A' : 'vi-VN-Standard-A'; // Standard로 변경 (태블릿 호환성)
+                
+                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${voiceSettings.ttsApiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        input: { text: text },
+                        voice: {
+                            languageCode: languageCode,
+                            name: voiceName,
+                            ssmlGender: 'FEMALE'
+                        },
+                        audioConfig: {
+                            audioEncoding: 'MP3',
+                            speakingRate: 0.9, // 약간 느리게 (명확성)
+                            pitch: 0.0,
+                            volumeGainDb: 0.0
+                        }
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`TTS API error: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const audioData = result.audioContent;
+                
+                // Base64를 Blob으로 변환
+                const byteCharacters = atob(audioData);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const audioBlob = new Blob([byteArray], { type: 'audio/mpeg' });
+                
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                // 캐시에 저장
+                ttsCache[cacheKey] = audioUrl;
+                
+                return audioUrl;
+                
+            } catch (error) {
+                console.error('TTS 생성 실패:', error);
+                return null;
             }
         }
         
@@ -1357,13 +1492,13 @@
             return URL.createObjectURL(audioBlob);
         }
         
-        // 한국어 음성 파일 업로드
+        // 한국어 음성 파일 업로드 (Firebase 동기화 포함)
         function uploadKoreanAudio(input, screen) {
             const file = input.files[0];
             if (!file) return;
             
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 const audioData = e.target.result;
                 
                 // Base64 데이터 저장
@@ -1375,7 +1510,11 @@
                 koreanAudioFiles[screen].url = URL.createObjectURL(file);
                 
                 updateVoiceStatus();
-                alert(`${getScreenKoreanName(screen)} 음성 파일이 업로드되었습니다!`);
+                
+                // Firebase에 동기화
+                await syncKoreanAudioToFirebase();
+                
+                alert(`${getScreenKoreanName(screen)} 음성 파일이 업로드되고 동기화되었습니다!`);
             };
             reader.readAsDataURL(file);
         }
@@ -2010,7 +2149,7 @@
                 apiSettings.serverUrl ? 'status-indicator status-connected' : 'status-indicator status-disconnected';
         }
         
-        // 교사 화면 업데이트
+        // 교사 화면 업데이트 (모든 기기 오디오 재생 지원)
         function updateTeacherScreen() {
             const recordsList = document.getElementById('recordsList');
             
@@ -2033,11 +2172,26 @@
                     '<span style="color: #2ed573;">🔥 클라우드 동기화됨</span>' : 
                     '<span style="color: #ff6b6b;">📱 로컬만 저장됨</span>';
                 
-                // 기기 정보 표시 (다른 기기에서 온 데이터인지 확인)
-                const isFromOtherDevice = record.firebaseId && !record.audioBlob && record.audioBase64;
-                const deviceInfo = isFromOtherDevice ? 
-                    '<span style="color: #3742fa;">📱 다른 기기에서 녹음</span>' : 
-                    '<span style="color: #2f3542;">📱 이 기기에서 녹음</span>';
+                // 오디오 재생을 위한 URL 준비
+                let audioUrl = null;
+                if (record.audioUrl) {
+                    audioUrl = record.audioUrl;
+                } else if (record.audioBase64) {
+                    // Base64에서 Blob URL 생성
+                    try {
+                        const byteCharacters = atob(record.audioBase64.split(',')[1]);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
+                        audioUrl = URL.createObjectURL(audioBlob);
+                        record.audioUrl = audioUrl; // 캐시
+                    } catch (error) {
+                        console.error('오디오 복원 실패:', error);
+                    }
+                }
                 
                 div.innerHTML = `
                     <div class="record-header">
@@ -2045,24 +2199,16 @@
                         <div class="record-time">
                             ${new Date(record.timestamp).toLocaleString('ko-KR')}
                             <br>${syncStatus}
-                            <br>${deviceInfo}
                         </div>
                     </div>
                     <div class="mood-info">
                         ${record.moodEmoji} ${record.mood} | 🌍 ${record.language}
                     </div>
-                    ${record.audioUrl ? `
+                    ${audioUrl ? `
                     <div class="audio-controls">
-                        <audio controls src="${record.audioUrl}" style="width: 100%; margin: 10px 0;"></audio>
+                        <audio controls src="${audioUrl}" style="width: 100%; margin: 10px 0;" preload="metadata"></audio>
                         <button class="download-audio-btn" onclick="downloadAudio(${record.id})">
                             🎵 음성파일 다운로드
-                        </button>
-                    </div>
-                    ` : record.audioBase64 ? `
-                    <div class="audio-controls">
-                        <p style="color: #ff6b6b; margin: 10px 0;">⚠️ 오디오 복원 중... 동기화 버튼을 눌러주세요.</p>
-                        <button class="download-audio-btn" onclick="restoreAudio(${record.id})" style="background: #3742fa;">
-                            🔄 오디오 복원
                         </button>
                     </div>
                     ` : ''}
@@ -2091,72 +2237,17 @@
         // 녹음 파일 다운로드
         function downloadAudio(recordId) {
             const record = counselingRecords.find(r => r.id === recordId);
-            if (!record) {
-                alert('녹음 기록을 찾을 수 없습니다.');
+            if (!record || !record.audioBlob) {
+                alert('녹음 파일을 찾을 수 없습니다.');
                 return;
             }
             
-            let audioBlob = record.audioBlob;
-            
-            // audioBlob이 없고 audioBase64가 있는 경우 복원
-            if (!audioBlob && record.audioBase64) {
-                try {
-                    const byteCharacters = atob(record.audioBase64.split(',')[1]);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    audioBlob = new Blob([byteArray], { type: 'audio/webm' });
-                } catch (error) {
-                    console.error('오디오 복원 실패:', error);
-                    alert('오디오 파일 복원에 실패했습니다.');
-                    return;
-                }
-            }
-            
-            if (!audioBlob) {
-                alert('다운로드할 녹음 파일을 찾을 수 없습니다.');
-                return;
-            }
-            
-            const audioUrl = URL.createObjectURL(audioBlob);
             const a = document.createElement('a');
-            a.href = audioUrl;
+            a.href = record.audioUrl;
             a.download = `음성녹음_${record.student}_${new Date(record.timestamp).toISOString().slice(0,10)}.webm`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(audioUrl);
-        }
-        
-        // 오디오 복원 함수
-        function restoreAudio(recordId) {
-            const record = counselingRecords.find(r => r.id === recordId);
-            if (!record || !record.audioBase64) {
-                alert('복원할 오디오 데이터를 찾을 수 없습니다.');
-                return;
-            }
-            
-            try {
-                const byteCharacters = atob(record.audioBase64.split(',')[1]);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
-                
-                record.audioBlob = audioBlob;
-                record.audioUrl = URL.createObjectURL(audioBlob);
-                
-                updateTeacherScreen();
-                alert('오디오가 성공적으로 복원되었습니다!');
-                
-            } catch (error) {
-                console.error('오디오 복원 실패:', error);
-                alert('오디오 복원에 실패했습니다: ' + error.message);
-            }
         }
         
         // 전체 기록 내보내기 (엑셀 파일)
@@ -2310,47 +2401,13 @@
         // 기록 새로고침 (실시간 동기화)
         function refreshRecords() {
             if (isFirebaseInitialized) {
-                // Firebase에서 최신 데이터 가져오기
-                syncAllDevices();
+                // 실시간 리스너가 자동으로 업데이트하므로 수동 새로고침은 간단히
+                updateTeacherScreen();
+                alert('실시간 동기화가 활성화되어 있습니다!');
             } else {
                 loadRecordsFromLocal();
                 updateTeacherScreen();
                 alert('로컬 기록이 새로고침되었습니다!');
-            }
-        }
-        
-        // 전체 오디오 복원
-        function restoreAllAudio() {
-            let restoredCount = 0;
-            let failedCount = 0;
-            
-            counselingRecords.forEach(record => {
-                if (!record.audioUrl && record.audioBase64) {
-                    try {
-                        const byteCharacters = atob(record.audioBase64.split(',')[1]);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const audioBlob = new Blob([byteArray], { type: 'audio/webm' });
-                        
-                        record.audioBlob = audioBlob;
-                        record.audioUrl = URL.createObjectURL(audioBlob);
-                        restoredCount++;
-                    } catch (error) {
-                        console.error('오디오 복원 실패:', error);
-                        failedCount++;
-                    }
-                }
-            });
-            
-            updateTeacherScreen();
-            
-            if (restoredCount > 0 || failedCount > 0) {
-                alert(`오디오 복원 완료!\n성공: ${restoredCount}개\n실패: ${failedCount}개`);
-            } else {
-                alert('복원할 오디오 파일이 없습니다.');
             }
         }
     </script>
