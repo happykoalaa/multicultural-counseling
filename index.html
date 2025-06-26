@@ -794,15 +794,44 @@
                     <input type="password" class="api-input" id="ttsApiKey" placeholder="Google TTS API Key">
                 </div>
                 
-                <div class="audio-upload" onclick="document.getElementById('koreanAudioFile').click()">
-                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎵 한국어 안내 음성 업로드</h5>
-                    <p style="margin-bottom: 10px;">클로바 더빙으로 녹음한 MP3/WAV 파일을 업로드하세요</p>
-                    <input type="file" id="koreanAudioFile" accept="audio/*" onchange="uploadKoreanAudio(this)">
-                    <div id="koreanAudioStatus" class="voice-status voice-error">한국어 음성 파일이 업로드되지 않았습니다</div>
+                <div class="audio-upload" onclick="document.getElementById('koreanAudioFile1').click()">
+                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎵 한국어 음성 1 - 언어선택 화면</h5>
+                    <p style="margin-bottom: 10px;">"안녕! 나는 코알라야! 어떤 언어로 이야기할까?"</p>
+                    <input type="file" id="koreanAudioFile1" accept="audio/*" onchange="uploadKoreanAudio(this, 'language')">
+                    <div id="koreanAudio1Status" class="voice-status voice-error">음성 파일이 업로드되지 않았습니다</div>
                 </div>
                 
-                <button class="api-button" onclick="testVoiceGuide()">🔊 음성 안내 테스트</button>
+                <div class="audio-upload" onclick="document.getElementById('koreanAudioFile2').click()">
+                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎵 한국어 음성 2 - 이름선택 화면</h5>
+                    <p style="margin-bottom: 10px;">"좋아! 이제 이름을 알려줘!"</p>
+                    <input type="file" id="koreanAudioFile2" accept="audio/*" onchange="uploadKoreanAudio(this, 'name')">
+                    <div id="koreanAudio2Status" class="voice-status voice-error">음성 파일이 업로드되지 않았습니다</div>
+                </div>
+                
+                <div class="audio-upload" onclick="document.getElementById('koreanAudioFile3').click()">
+                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎵 한국어 음성 3 - 기분선택 화면</h5>
+                    <p style="margin-bottom: 10px;">"오늘 기분은 어때?"</p>
+                    <input type="file" id="koreanAudioFile3" accept="audio/*" onchange="uploadKoreanAudio(this, 'mood')">
+                    <div id="koreanAudio3Status" class="voice-status voice-error">음성 파일이 업로드되지 않았습니다</div>
+                </div>
+                
+                <div class="audio-upload" onclick="document.getElementById('koreanAudioFile4').click()">
+                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎵 한국어 음성 4 - 녹음 화면</h5>
+                    <p style="margin-bottom: 10px;">"편안하게 이야기해줘. 잘 들을게!"</p>
+                    <input type="file" id="koreanAudioFile4" accept="audio/*" onchange="uploadKoreanAudio(this, 'record')">
+                    <div id="koreanAudio4Status" class="voice-status voice-error">음성 파일이 업로드되지 않았습니다</div>
+                </div>
+                
+                <button class="api-button" onclick="testVoiceGuide()">🔊 한국어 음성 순차 테스트</button>
                 <button class="api-button" onclick="saveVoiceSettings()">💾 음성 설정 저장</button>
+                
+                <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 8px; font-size: 14px;">
+                    💡 <strong>음성 파일 가이드:</strong><br>
+                    • 각 화면별로 클로바 더빙 파일을 개별 업로드<br>
+                    • MP3 또는 WAV 형식 권장<br>
+                    • 파일 크기: 1MB 이하 권장<br>
+                    • 테스트 버튼으로 순차 재생 확인 가능
+                </div>
             </div>
             <div class="api-config">
                 <h4 style="color: #2d8a57; margin-bottom: 15px;">🔧 API 설정</h4>
@@ -875,12 +904,19 @@
         let realtimeListener = null;
         
         // 음성 안내 관련 변수
-        let koreanAudioBlob = null;
-        let koreanAudioUrl = null;
+        let koreanAudioFiles = {
+            language: { blob: null, url: null },
+            name: { blob: null, url: null },
+            mood: { blob: null, url: null },
+            record: { blob: null, url: null }
+        };
         let currentAudio = null;
         let voiceSettings = {
             ttsApiKey: localStorage.getItem('ttsApiKey') || '',
-            koreanAudioData: localStorage.getItem('koreanAudioData') || null
+            koreanAudio1: localStorage.getItem('koreanAudio1') || null,
+            koreanAudio2: localStorage.getItem('koreanAudio2') || null,
+            koreanAudio3: localStorage.getItem('koreanAudio3') || null,
+            koreanAudio4: localStorage.getItem('koreanAudio4') || null
         };
         
         // 화면별 안내 메시지
@@ -1153,21 +1189,24 @@
             updateFirebaseStatus();
             updateVoiceStatus();
             
-            // 한국어 음성 파일 복원
-            if (voiceSettings.koreanAudioData) {
-                try {
-                    const byteCharacters = atob(voiceSettings.koreanAudioData);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+            // 한국어 음성 파일들 복원
+            ['language', 'name', 'mood', 'record'].forEach((screen, index) => {
+                const audioData = voiceSettings[`koreanAudio${index + 1}`];
+                if (audioData) {
+                    try {
+                        const byteCharacters = atob(audioData);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        koreanAudioFiles[screen].blob = new Blob([byteArray], { type: 'audio/mpeg' });
+                        koreanAudioFiles[screen].url = URL.createObjectURL(koreanAudioFiles[screen].blob);
+                    } catch (error) {
+                        console.error(`${screen} 음성 파일 복원 실패:`, error);
                     }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    koreanAudioBlob = new Blob([byteArray], { type: 'audio/mpeg' });
-                    koreanAudioUrl = URL.createObjectURL(koreanAudioBlob);
-                } catch (error) {
-                    console.error('한국어 음성 파일 복원 실패:', error);
                 }
-            }
+            });
             
             // Firebase 자동 초기화 (설정이 있는 경우)
             if (firebaseConfig.projectId && firebaseConfig.apiKey) {
@@ -1209,9 +1248,9 @@
             }
             
             try {
-                if (language === 'ko' && koreanAudioUrl) {
+                if (language === 'ko' && koreanAudioFiles[screen].url) {
                     // 한국어: 업로드된 클로바 더빙 파일 재생
-                    currentAudio = new Audio(koreanAudioUrl);
+                    currentAudio = new Audio(koreanAudioFiles[screen].url);
                     await currentAudio.play();
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
                     // 다른 언어: Google TTS API 사용
@@ -1274,7 +1313,7 @@
         }
         
         // 한국어 음성 파일 업로드
-        function uploadKoreanAudio(input) {
+        function uploadKoreanAudio(input, screen) {
             const file = input.files[0];
             if (!file) return;
             
@@ -1283,17 +1322,29 @@
                 const audioData = e.target.result;
                 
                 // Base64 데이터 저장
-                voiceSettings.koreanAudioData = audioData;
-                localStorage.setItem('koreanAudioData', audioData);
+                const audioIndex = ['language', 'name', 'mood', 'record'].indexOf(screen) + 1;
+                voiceSettings[`koreanAudio${audioIndex}`] = audioData;
+                localStorage.setItem(`koreanAudio${audioIndex}`, audioData);
                 
                 // Blob과 URL 생성
-                koreanAudioBlob = new Blob([new Uint8Array(e.target.result)], { type: file.type });
-                koreanAudioUrl = URL.createObjectURL(koreanAudioBlob);
+                koreanAudioFiles[screen].blob = new Blob([new Uint8Array(e.target.result)], { type: file.type });
+                koreanAudioFiles[screen].url = URL.createObjectURL(koreanAudioFiles[screen].blob);
                 
                 updateVoiceStatus();
-                alert('한국어 음성 파일이 업로드되었습니다!');
+                alert(`${getScreenName(screen)} 음성 파일이 업로드되었습니다!`);
             };
             reader.readAsArrayBuffer(file);
+        }
+        
+        // 화면 이름 변환
+        function getScreenName(screen) {
+            const names = {
+                language: '언어선택 화면',
+                name: '이름선택 화면', 
+                mood: '기분선택 화면',
+                record: '녹음 화면'
+            };
+            return names[screen] || screen;
         }
         
         // 음성 설정 저장
@@ -1307,38 +1358,56 @@
         
         // 음성 상태 업데이트
         function updateVoiceStatus() {
-            const koreanStatus = document.getElementById('koreanAudioStatus');
+            const screens = ['language', 'name', 'mood', 'record'];
+            
+            screens.forEach((screen, index) => {
+                const statusElement = document.getElementById(`koreanAudio${index + 1}Status`);
+                if (koreanAudioFiles[screen].url) {
+                    statusElement.textContent = '음성 파일이 준비되었습니다';
+                    statusElement.className = 'voice-status voice-ready';
+                } else {
+                    statusElement.textContent = '음성 파일이 업로드되지 않았습니다';
+                    statusElement.className = 'voice-status voice-error';
+                }
+            });
+            
             const ttsStatus = document.getElementById('ttsStatus');
-            
-            if (koreanAudioUrl) {
-                koreanStatus.textContent = '한국어 음성 파일이 준비되었습니다';
-                koreanStatus.className = 'voice-status voice-ready';
-            } else {
-                koreanStatus.textContent = '한국어 음성 파일이 업로드되지 않았습니다';
-                koreanStatus.className = 'voice-status voice-error';
-            }
-            
             ttsStatus.className = voiceSettings.ttsApiKey ? 
                 'status-indicator status-connected' : 'status-indicator status-disconnected';
         }
         
         // 음성 안내 테스트
         async function testVoiceGuide() {
+            const screens = ['language', 'name', 'mood', 'record'];
+            
             try {
-                if (koreanAudioUrl) {
-                    const koreanStatus = document.getElementById('koreanAudioStatus');
-                    koreanStatus.textContent = '한국어 음성 테스트 중...';
-                    koreanStatus.className = 'voice-status voice-playing';
+                for (let i = 0; i < screens.length; i++) {
+                    const screen = screens[i];
+                    const statusElement = document.getElementById(`koreanAudio${i + 1}Status`);
                     
-                    const audio = new Audio(koreanAudioUrl);
-                    audio.onended = () => {
-                        koreanStatus.textContent = '한국어 음성 파일이 준비되었습니다';
-                        koreanStatus.className = 'voice-status voice-ready';
-                    };
-                    await audio.play();
-                } else {
-                    alert('먼저 한국어 음성 파일을 업로드해주세요.');
+                    if (koreanAudioFiles[screen].url) {
+                        statusElement.textContent = `${getScreenName(screen)} 음성 테스트 중...`;
+                        statusElement.className = 'voice-status voice-playing';
+                        
+                        const audio = new Audio(koreanAudioFiles[screen].url);
+                        
+                        // 음성 재생 완료 후 상태 복원
+                        audio.onended = () => {
+                            statusElement.textContent = '음성 파일이 준비되었습니다';
+                            statusElement.className = 'voice-status voice-ready';
+                        };
+                        
+                        await audio.play();
+                        
+                        // 다음 음성 재생 전 1초 대기
+                        if (i < screens.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    }
                 }
+                
+                alert('모든 한국어 음성 테스트가 완료되었습니다!');
+                
             } catch (error) {
                 console.error('음성 테스트 실패:', error);
                 alert('음성 테스트에 실패했습니다: ' + error.message);
