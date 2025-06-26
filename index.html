@@ -1248,13 +1248,33 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 첫 화면 음성 안내 (즉시 재생)
-            setTimeout(() => {
-                playVoiceGuide('language', 'ko');
-            }, 1000); // 1초 후 바로 재생
+            // 첫 화면 음성 안내 즉시 재생
+            playFirstScreenVoice();
         });
         
-        // 음성 안내 재생 (즉시 재생 최적화)
+        // 첫 화면 음성 안내 함수
+        function playFirstScreenVoice() {
+            // 사용자 상호작용 없이도 재생되도록 시도
+            setTimeout(() => {
+                playVoiceGuide('language', 'ko').catch(() => {
+                    console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
+                    // 자동 재생이 실패하면 첫 클릭 시 재생
+                    document.addEventListener('click', function firstClick() {
+                        playVoiceGuide('language', 'ko');
+                        document.removeEventListener('click', firstClick);
+                    }, { once: true });
+                    
+                    // 터치 이벤트도 추가 (모바일 대응)
+                    document.addEventListener('touchstart', function firstTouch() {
+                        playVoiceGuide('language', 'ko');
+                        document.removeEventListener('touchstart', firstTouch);
+                    }, { once: true });
+                });
+            }, 100); // 페이지 로드 완료 후 즉시 시도
+        }
+        });
+        
+        // 음성 안내 재생 (태블릿 최적화)
         async function playVoiceGuide(screen, language) {
             // 이전 음성 정지
             if (currentAudio) {
@@ -1269,21 +1289,22 @@
                     currentAudio = new Audio(koreanAudioFiles[screen].url);
                     currentAudio.preload = 'auto';
                     
-                    // 즉시 재생 시도
-                    try {
-                        await currentAudio.play();
-                    } catch (error) {
-                        // 자동재생 실패 시 사용자 상호작용 대기
-                        console.log('자동재생 실패, 사용자 터치 대기:', error);
-                        document.addEventListener('click', function playOnClick() {
-                            currentAudio.play().catch(e => console.error('클릭 후 재생 실패:', e));
-                            document.removeEventListener('click', playOnClick);
-                        }, { once: true });
-                        
-                        document.addEventListener('touchstart', function playOnTouch() {
-                            currentAudio.play().catch(e => console.error('터치 후 재생 실패:', e));
-                            document.removeEventListener('touchstart', playOnTouch);
-                        }, { once: true });
+                    // 첫 화면인 경우 즉시 재생 시도
+                    if (screen === 'language') {
+                        try {
+                            await currentAudio.play();
+                        } catch (error) {
+                            console.log('첫 화면 자동 재생 실패, 대기 모드 설정:', error);
+                            throw error; // 에러를 다시 던져서 상위에서 처리
+                        }
+                    } else {
+                        // 다른 화면은 기존 로직
+                        currentAudio.addEventListener('canplaythrough', () => {
+                            currentAudio.play().catch(error => {
+                                console.error('한국어 음성 재생 실패:', error);
+                            });
+                        });
+                        currentAudio.load(); // 미리 로드
                     }
                     
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
@@ -1308,24 +1329,27 @@
                         currentAudio = new Audio(audioUrl);
                         currentAudio.preload = 'auto';
                         
-                        // 즉시 재생 시도
-                        try {
-                            await currentAudio.play();
-                        } catch (error) {
-                            console.error('TTS 음성 재생 실패:', error);
-                            // 재시도
-                            setTimeout(async () => {
-                                try {
-                                    await currentAudio.play();
-                                } catch (retryError) {
-                                    console.error('TTS 음성 재시도 실패:', retryError);
-                                }
-                            }, 100);
-                        }
+                        // 태블릿 최적화: 짧은 딜레이 후 재생
+                        setTimeout(async () => {
+                            try {
+                                await currentAudio.play();
+                            } catch (error) {
+                                console.error('TTS 음성 재생 실패:', error);
+                                // 재시도
+                                setTimeout(async () => {
+                                    try {
+                                        await currentAudio.play();
+                                    } catch (retryError) {
+                                        console.error('TTS 음성 재시도 실패:', retryError);
+                                    }
+                                }, 100);
+                            }
+                        }, 200);
                     }
                 }
             } catch (error) {
                 console.error('음성 재생 실패:', error);
+                throw error; // 에러를 상위로 전달
             }
         }
         
@@ -2333,10 +2357,8 @@
             
             goToScreen('languageScreen');
             
-            // 첫 화면 음성 안내 (즉시 재생)
-            setTimeout(() => {
-                playVoiceGuide('language', 'ko');
-            }, 1000); // 1초 후 바로 재생
+            // 첫 화면 음성 안내 즉시 재생
+            playFirstScreenVoice();
         }
         
         // 기록 새로고침 (실시간 동기화)
