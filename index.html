@@ -1248,23 +1248,29 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 첫 화면 음성 안내 (3초 후, 태블릿 최적화)
-            setTimeout(() => {
-                // 사용자 상호작용 후 음성 재생 (태블릿 정책 준수)
-                document.addEventListener('click', function firstClick() {
-                    playVoiceGuide('language', 'ko');
-                    document.removeEventListener('click', firstClick);
-                }, { once: true });
-                
-                // PC에서는 바로 재생 시도
-                playVoiceGuide('language', 'ko').catch(() => {
-                    // 실패하면 첫 클릭 시 재생되도록 대기
-                    console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
-                });
-            }, 3000);
+            // 첫 화면 음성 안내 (즉시 재생)
+            playFirstVoiceGuide();
         });
         
-        // 음성 안내 재생 (태블릿 최적화)
+        // 첫 화면 음성 안내 (즉시 재생)
+        function playFirstVoiceGuide() {
+            // 100ms 후 음성 재생 (DOM 완전 로드 보장)
+            setTimeout(() => {
+                if (koreanAudioFiles.language.url) {
+                    // 한국어 클로바 더빙 파일이 있으면 바로 재생
+                    playVoiceGuide('language', 'ko').catch(() => {
+                        console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
+                        // 첫 클릭 시 재생되도록 대기
+                        document.addEventListener('click', function firstClick() {
+                            playVoiceGuide('language', 'ko');
+                            document.removeEventListener('click', firstClick);
+                        }, { once: true });
+                    });
+                } else {
+                    console.log('한국어 음성 파일이 없습니다. 음성 안내를 건너뜁니다.');
+                }
+            }, 100);
+        }
         async function playVoiceGuide(screen, language) {
             // 이전 음성 정지
             if (currentAudio) {
@@ -2337,20 +2343,8 @@
             
             goToScreen('languageScreen');
             
-            // 첫 화면 음성 안내 (3초 후, 태블릿 최적화)
-            setTimeout(() => {
-                // 사용자 상호작용 후 음성 재생 (태블릿 정책 준수)
-                document.addEventListener('click', function resetClick() {
-                    playVoiceGuide('language', 'ko');
-                    document.removeEventListener('click', resetClick);
-                }, { once: true });
-                
-                // PC에서는 바로 재생 시도
-                playVoiceGuide('language', 'ko').catch(() => {
-                    // 실패하면 첫 클릭 시 재생되도록 대기
-                    console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
-                });
-            }, 3000);
+            // 첫 화면 음성 안내 (즉시 재생)
+            playFirstVoiceGuide();
         }
         
         // 기록 새로고침 (실시간 동기화)
