@@ -1249,28 +1249,12 @@
             loadRecordsFromLocal();
             
             // 첫 화면 음성 안내 (즉시 재생)
-            playFirstVoiceGuide();
+            setTimeout(() => {
+                playVoiceGuide('language', 'ko');
+            }, 1000); // 1초 후 바로 재생
         });
         
-        // 첫 화면 음성 안내 (즉시 재생)
-        function playFirstVoiceGuide() {
-            // 100ms 후 음성 재생 (DOM 완전 로드 보장)
-            setTimeout(() => {
-                if (koreanAudioFiles.language.url) {
-                    // 한국어 클로바 더빙 파일이 있으면 바로 재생
-                    playVoiceGuide('language', 'ko').catch(() => {
-                        console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
-                        // 첫 클릭 시 재생되도록 대기
-                        document.addEventListener('click', function firstClick() {
-                            playVoiceGuide('language', 'ko');
-                            document.removeEventListener('click', firstClick);
-                        }, { once: true });
-                    });
-                } else {
-                    console.log('한국어 음성 파일이 없습니다. 음성 안내를 건너뜁니다.');
-                }
-            }, 100);
-        }
+        // 음성 안내 재생 (즉시 재생 최적화)
         async function playVoiceGuide(screen, language) {
             // 이전 음성 정지
             if (currentAudio) {
@@ -1285,14 +1269,22 @@
                     currentAudio = new Audio(koreanAudioFiles[screen].url);
                     currentAudio.preload = 'auto';
                     
-                    // 태블릿에서 음성 재생 문제 해결
-                    currentAudio.addEventListener('canplaythrough', () => {
-                        currentAudio.play().catch(error => {
-                            console.error('한국어 음성 재생 실패:', error);
-                        });
-                    });
-                    
-                    currentAudio.load(); // 미리 로드
+                    // 즉시 재생 시도
+                    try {
+                        await currentAudio.play();
+                    } catch (error) {
+                        // 자동재생 실패 시 사용자 상호작용 대기
+                        console.log('자동재생 실패, 사용자 터치 대기:', error);
+                        document.addEventListener('click', function playOnClick() {
+                            currentAudio.play().catch(e => console.error('클릭 후 재생 실패:', e));
+                            document.removeEventListener('click', playOnClick);
+                        }, { once: true });
+                        
+                        document.addEventListener('touchstart', function playOnTouch() {
+                            currentAudio.play().catch(e => console.error('터치 후 재생 실패:', e));
+                            document.removeEventListener('touchstart', playOnTouch);
+                        }, { once: true });
+                    }
                     
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
                     // 다른 언어: 캐시된 TTS 또는 새로 생성
@@ -1316,22 +1308,20 @@
                         currentAudio = new Audio(audioUrl);
                         currentAudio.preload = 'auto';
                         
-                        // 태블릿 최적화: 짧은 딜레이 후 재생
-                        setTimeout(async () => {
-                            try {
-                                await currentAudio.play();
-                            } catch (error) {
-                                console.error('TTS 음성 재생 실패:', error);
-                                // 재시도
-                                setTimeout(async () => {
-                                    try {
-                                        await currentAudio.play();
-                                    } catch (retryError) {
-                                        console.error('TTS 음성 재시도 실패:', retryError);
-                                    }
-                                }, 100);
-                            }
-                        }, 200);
+                        // 즉시 재생 시도
+                        try {
+                            await currentAudio.play();
+                        } catch (error) {
+                            console.error('TTS 음성 재생 실패:', error);
+                            // 재시도
+                            setTimeout(async () => {
+                                try {
+                                    await currentAudio.play();
+                                } catch (retryError) {
+                                    console.error('TTS 음성 재시도 실패:', retryError);
+                                }
+                            }, 100);
+                        }
                     }
                 }
             } catch (error) {
@@ -2344,7 +2334,9 @@
             goToScreen('languageScreen');
             
             // 첫 화면 음성 안내 (즉시 재생)
-            playFirstVoiceGuide();
+            setTimeout(() => {
+                playVoiceGuide('language', 'ko');
+            }, 1000); // 1초 후 바로 재생
         }
         
         // 기록 새로고침 (실시간 동기화)
