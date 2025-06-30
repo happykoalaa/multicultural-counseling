@@ -622,13 +622,12 @@
             👩‍🏫 교사 화면
         </button>
 
-        <!-- 1단계: 첫 인사 화면 -->
+        <!-- 1단계: 첫 화면 (코알라 소개) -->
         <div class="screen active" id="welcomeScreen">
-            <div class="koala-character koala-happy koala-clickable" 
-                 id="welcomeKoala">🐨</div>
+            <div class="koala-character koala-happy" onclick="goToLanguageScreen()" style="cursor: pointer; transform: scale(1.2);">🐨</div>
             <h1>안녕! 나는 코알라야!</h1>
-            <div class="speech-bubble">
-                코알라를 터치해서 시작해보자!
+            <div class="speech-bubble" style="cursor: pointer;" onclick="goToLanguageScreen()">
+                나를 터치해서 시작해줘!
             </div>
         </div>
 
@@ -653,9 +652,12 @@
                     Tiếng Việt
                 </button>
             </div>
+            <div class="nav-buttons">
+                <button class="nav-button" onclick="goToScreen('welcomeScreen')">🔙 처음</button>
+            </div>
         </div>
 
-        <!-- 2단계: 이름 선택 -->
+        <!-- 3단계: 이름 선택 -->
         <div class="screen" id="nameScreen">
             <div class="koala-character koala-happy">🐨</div>
             <h2>좋아! 이제 이름을 알려줘!</h2>
@@ -685,7 +687,8 @@
             </div>
         </div>
 
-        <!-- 3단계: 기분 선택 -->
+        <!-- 4단계: 기분 선택 -->
+        <!-- 4단계: 기분 선택 -->
         <div class="screen" id="moodScreen">
             <div class="koala-character koala-talking">🐨</div>
             <h2 id="greetingText">안녕!</h2>
@@ -723,7 +726,8 @@
             </div>
         </div>
 
-        <!-- 4단계: 이야기 녹음 -->
+        <!-- 5단계: 이야기 녹음 -->
+        <!-- 5단계: 이야기 녹음 -->
         <div class="screen" id="recordScreen">
             <div class="koala-character koala-talking">🐨</div>
             <h2>코알라에게 이야기해줘!</h2>
@@ -750,7 +754,7 @@
             </div>
         </div>
 
-        <!-- 5단계: 종료 메시지 -->
+        <!-- 6단계: 종료 메시지 -->
         <div class="screen" id="endScreen">
             <div class="koala-character koala-happy">🐨</div>
             <h2>고마워!</h2>
@@ -804,16 +808,9 @@
                     <input type="password" class="api-input" id="ttsApiKey" placeholder="Google TTS API Key">
                 </div>
                 
-                <div class="audio-upload" onclick="document.getElementById('koreanWelcomeAudio').click()">
-                    <h5 style="color: #2d8a57; margin-bottom: 10px;">🎤 한국어 첫인사 안내음성</h5>
-                    <p style="margin-bottom: 5px; font-style: italic; color: #666;">"안녕! 나는 코알라야!"</p>
-                    <input type="file" id="koreanWelcomeAudio" accept="audio/*" onchange="uploadKoreanAudio(this, 'welcome')">
-                    <div id="koreanWelcomeStatus" class="voice-status voice-error">음성 파일 없음</div>
-                </div>
-                
                 <div class="audio-upload" onclick="document.getElementById('koreanLanguageAudio').click()">
                     <h5 style="color: #2d8a57; margin-bottom: 10px;">🎤 한국어 언어선택 안내음성</h5>
-                    <p style="margin-bottom: 5px; font-style: italic; color: #666;">"어떤 언어로 이야기할까?"</p>
+                    <p style="margin-bottom: 5px; font-style: italic; color: #666;">"안녕! 나는 코알라야! 어떤 언어로 이야기할까?"</p>
                     <input type="file" id="koreanLanguageAudio" accept="audio/*" onchange="uploadKoreanAudio(this, 'language')">
                     <div id="koreanLanguageStatus" class="voice-status voice-error">음성 파일 없음</div>
                 </div>
@@ -879,7 +876,7 @@
             </div>
             
             <div class="teacher-nav">
-                <button class="teacher-button" onclick="goToScreen('languageScreen')">🔙 학생 화면으로</button>
+                <button class="teacher-button" onclick="goToScreen('welcomeScreen')">🔙 학생 화면으로</button>
                 <button class="teacher-button" onclick="exportAllRecords()">📊 엑셀 파일 다운로드</button>
                 <button class="teacher-button" onclick="clearAllRecords()">🗑️ 기록 지우기</button>
                 <button class="teacher-button" onclick="syncAllDevices()">🔄 모든 기기 동기화</button>
@@ -925,7 +922,6 @@
         
         // 음성 안내 관련 변수
         let koreanAudioFiles = {
-            welcome: { blob: null, url: null },
             language: { blob: null, url: null },
             name: { blob: null, url: null },
             mood: { blob: null, url: null },
@@ -937,7 +933,6 @@
         let voiceSettings = {
             ttsApiKey: localStorage.getItem('ttsApiKey') || '',
             koreanAudioData: {
-                welcome: localStorage.getItem('koreanAudioData_welcome') || null,
                 language: localStorage.getItem('koreanAudioData_language') || null,
                 name: localStorage.getItem('koreanAudioData_name') || null,
                 mood: localStorage.getItem('koreanAudioData_mood') || null,
@@ -949,30 +944,59 @@
         // 화면별 안내 메시지
         const voiceMessages = {
             ko: {
-                welcome: "안녕! 나는 코알라야!",
-                language: "어떤 언어로 이야기할까?",
+                language: "안녕! 나는 코알라야! 어떤 언어로 이야기할까?",
                 name: "좋아! 이제 이름을 알려줘!",
                 mood: "오늘 기분은 어때?",
                 record: "편안하게 이야기해줘. 내가 잘 들을게!",
                 end: "오늘 이야기 즐거웠어! 다음에 또 만나!"
             },
             ru: {
-                welcome: "Привет! Я Коала!",
-                language: "На каком языке будем говорить?",
+                language: "Привет! Я Коала! На каком языке будем говорить?",
                 name: "Отлично! Теперь скажи мне свое имя!",
                 mood: "Как твое настроение сегодня?",
                 record: "Говори спокойно. Я внимательно слушаю!",
                 end: "Сегодня было здорово поговорить! Увидимся снова!"
             },
             vi: {
-                welcome: "Xin chào! Tôi là Koala!",
-                language: "Chúng ta sẽ nói bằng ngôn ngữ nào?",
+                language: "Xin chào! Tôi là Koala! Chúng ta sẽ nói bằng ngôn ngữ nào?",
                 name: "Tuyệt vời! Bây giờ hãy cho tôi biết tên của bạn!",
                 mood: "Hôm nay bạn cảm thấy thế nào?",
                 record: "Hãy nói một cách thoải mái. Tôi sẽ lắng nghe!",
                 end: "Hôm nay thật vui khi nói chuyện! Hẹn gặp lại!"
             }
         };
+        
+        // API 설정
+        let apiSettings = {
+            speechApiKey: localStorage.getItem('speechApiKey') || '',
+            translateApiKey: localStorage.getItem('translateApiKey') || '',
+            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
+        };
+        
+        // 첫 화면에서 언어 선택 화면으로 이동
+        function goToLanguageScreen() {
+            goToScreen('languageScreen');
+            
+            // 언어선택 화면으로 이동하면 즉시 음성 재생
+            setTimeout(() => {
+                playVoiceGuide('language', 'ko');
+            }, 500);
+        }
+        
+        // 화면 전환 함수
+        function goToScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            // 첫 번째 화면(웰컴)에서만 교사 접근 버튼 표시
+            if (screenId === 'welcomeScreen') {
+                document.getElementById('teacherAccessBtn').style.display = 'block';
+            } else {
+                document.getElementById('teacherAccessBtn').style.display = 'none';
+            }
+        }
         
         // Firebase 초기화 (Storage 없이)
         function initializeFirebase() {
@@ -1203,13 +1227,6 @@
             }
         }
         
-        // API 설정
-        let apiSettings = {
-            speechApiKey: localStorage.getItem('speechApiKey') || '',
-            translateApiKey: localStorage.getItem('translateApiKey') || '',
-            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
-        };
-        
         // 페이지 로드 시 설정 복원 및 자동 초기화
         window.addEventListener('load', () => {
             // API 설정 복원
@@ -1270,25 +1287,11 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 첫 화면 음성 안내 (3초 후)
-            setTimeout(() => {
-                playVoiceGuide('welcome', 'ko').catch(() => {
-                    console.log('자동 재생 실패');
-                });
-            }, 3000);
-        });
-        
-        // 페이지 로드 완료 후 이벤트 추가
-        document.addEventListener('DOMContentLoaded', function() {
-            const welcomeKoala = document.getElementById('welcomeKoala');
-            if (welcomeKoala) {
-                welcomeKoala.addEventListener('click', goToLanguageScreen);
-                welcomeKoala.addEventListener('touchend', goToLanguageScreen);
-            }
+            // 첫 화면에서는 음성 없음 (코알라 터치 시 언어선택으로 이동)
         });
         });
         
-        // 음성 안내 재생하고 완료까지 대기
+        // 음성 안내 재생 및 완료 대기
         async function playVoiceGuideAndWait(screen, language) {
             return new Promise(async (resolve, reject) => {
                 // 이전 음성 정지
@@ -1305,32 +1308,23 @@
                         currentAudio.preload = 'auto';
                         
                         currentAudio.onended = () => {
-                            resolve();
+                            resolve(); // 음성 완료 시 Promise 해결
                         };
                         
-                        currentAudio.onerror = () => {
-                            reject(new Error('한국어 음성 재생 실패'));
+                        currentAudio.onerror = (error) => {
+                            reject(error);
                         };
                         
-                        // 태블릿에서 음성 재생 문제 해결
-                        currentAudio.addEventListener('canplaythrough', () => {
-                            currentAudio.play().catch(error => {
-                                reject(error);
-                            });
-                        });
-                        
-                        currentAudio.load(); // 미리 로드
+                        await currentAudio.play();
                         
                     } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
                         // 다른 언어: 캐시된 TTS 또는 새로 생성
                         const message = voiceMessages[language][screen];
                         if (message) {
-                            // 캐시 키 생성
                             const cacheKey = `tts_${language}_${screen}`;
                             let audioUrl = sessionStorage.getItem(cacheKey);
                             
                             if (!audioUrl) {
-                                // 캐시에 없으면 새로 생성
                                 try {
                                     audioUrl = await generateTTSAudio(message, language);
                                     sessionStorage.setItem(cacheKey, audioUrl);
@@ -1344,33 +1338,19 @@
                             currentAudio.preload = 'auto';
                             
                             currentAudio.onended = () => {
-                                resolve();
+                                resolve(); // 음성 완료 시 Promise 해결
                             };
                             
-                            currentAudio.onerror = () => {
-                                reject(new Error('TTS 음성 재생 실패'));
+                            currentAudio.onerror = (error) => {
+                                reject(error);
                             };
                             
-                            // 태블릿 최적화: 짧은 딜레이 후 재생
-                            setTimeout(async () => {
-                                try {
-                                    await currentAudio.play();
-                                } catch (error) {
-                                    // 재시도
-                                    setTimeout(async () => {
-                                        try {
-                                            await currentAudio.play();
-                                        } catch (retryError) {
-                                            reject(retryError);
-                                        }
-                                    }, 100);
-                                }
-                            }, 200);
+                            await currentAudio.play();
                         } else {
-                            resolve(); // 메시지가 없으면 바로 완료
+                            resolve(); // 메시지가 없으면 즉시 완료
                         }
                     } else {
-                        resolve(); // 조건에 맞지 않으면 바로 완료
+                        resolve(); // 음성 파일이 없으면 즉시 완료
                     }
                 } catch (error) {
                     reject(error);
@@ -1404,72 +1384,47 @@
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
                     // 다른 언어: 캐시된 TTS 또는 새로 생성
                     const message = voiceMessages[language][screen];
-                    if (message) {
-                        // 캐시 키 생성
-                        const cacheKey = `tts_${language}_${screen}`;
-                        let audioUrl = sessionStorage.getItem(cacheKey);
-                        
-                        if (!audioUrl) {
-                            // 캐시에 없으면 새로 생성
-                            try {
-                                audioUrl = await generateTTSAudio(message, language);
-                                sessionStorage.setItem(cacheKey, audioUrl);
-                            } catch (error) {
-                                console.error('TTS 생성 실패:', error);
-                                return;
+                        if (message) {
+                            // 캐시 키 생성
+                            const cacheKey = `tts_${language}_${screen}`;
+                            let audioUrl = sessionStorage.getItem(cacheKey);
+                            
+                            if (!audioUrl) {
+                                // 캐시에 없으면 새로 생성
+                                try {
+                                    audioUrl = await generateTTSAudio(message, language);
+                                    sessionStorage.setItem(cacheKey, audioUrl);
+                                } catch (error) {
+                                    console.error('TTS 생성 실패:', error);
+                                    return;
+                                }
                             }
+                            
+                            currentAudio = new Audio(audioUrl);
+                            currentAudio.preload = 'auto';
+                            
+                            // 태블릿 최적화: 짧은 딜레이 후 재생
+                            setTimeout(async () => {
+                                try {
+                                    await currentAudio.play();
+                                } catch (error) {
+                                    console.error('TTS 음성 재생 실패:', error);
+                                    // 재시도
+                                    setTimeout(async () => {
+                                        try {
+                                            await currentAudio.play();
+                                        } catch (retryError) {
+                                            console.error('TTS 음성 재시도 실패:', retryError);
+                                        }
+                                    }, 100);
+                                }
+                            }, 200);
                         }
-                        
-                        currentAudio = new Audio(audioUrl);
-                        currentAudio.preload = 'auto';
-                        
-                        // 태블릿 최적화: 짧은 딜레이 후 재생
-                        setTimeout(async () => {
-                            try {
-                                await currentAudio.play();
-                            } catch (error) {
-                                console.error('TTS 음성 재생 실패:', error);
-                                // 재시도
-                                setTimeout(async () => {
-                                    try {
-                                        await currentAudio.play();
-                                    } catch (retryError) {
-                                        console.error('TTS 음성 재시도 실패:', retryError);
-                                    }
-                                }, 100);
-                            }
-                        }, 200);
                     }
+                } catch (error) {
+                    console.error('음성 재생 실패:', error);
                 }
-            } catch (error) {
-                console.error('음성 재생 실패:', error);
             }
-        }
-            // 이전 음성 정지
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
-                currentAudio = null;
-            }
-            
-            try {
-                if (language === 'ko' && koreanAudioFiles[screen].url) {
-                    // 한국어: 업로드된 클로바 더빙 파일 재생
-                    currentAudio = new Audio(koreanAudioFiles[screen].url);
-                    currentAudio.preload = 'auto';
-                    
-                    // 태블릿에서 음성 재생 문제 해결
-                    currentAudio.addEventListener('canplaythrough', () => {
-                        currentAudio.play().catch(error => {
-                            console.error('한국어 음성 재생 실패:', error);
-                        });
-                    });
-                    
-                    currentAudio.load(); // 미리 로드
-                    
-                } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
-                    // 다른 언어: 캐시된 TTS 또는 새로 생성
-                    const message = voiceMessages[language][screen];
                     if (message) {
                         // 캐시 키 생성
                         const cacheKey = `tts_${language}_${screen}`;
@@ -1594,7 +1549,6 @@
         // 화면명 한국어 변환
         function getScreenKoreanName(screen) {
             const names = {
-                welcome: '첫인사',
                 language: '언어선택',
                 name: '이름선택',
                 mood: '기분선택',
@@ -1615,7 +1569,7 @@
         
         // 음성 상태 업데이트
         function updateVoiceStatus() {
-            const screens = ['welcome', 'language', 'name', 'mood', 'record', 'end'];
+            const screens = ['language', 'name', 'mood', 'record', 'end'];
             
             screens.forEach(screen => {
                 const statusElement = document.getElementById(`korean${screen.charAt(0).toUpperCase() + screen.slice(1)}Status`);
@@ -1640,28 +1594,13 @@
         // 음성 안내 테스트
         async function testVoiceGuide() {
             try {
-                // 첫인사 화면 음성으로 테스트
-                if (koreanAudioFiles.welcome.url) {
-                    const welcomeStatus = document.getElementById('koreanWelcomeStatus');
-                    if (welcomeStatus) {
-                        welcomeStatus.textContent = '음성 테스트 중...';
-                        welcomeStatus.className = 'voice-status voice-playing';
-                        
-                        const audio = new Audio(koreanAudioFiles.welcome.url);
-                        audio.onended = () => {
-                            welcomeStatus.textContent = '음성 파일 준비됨';
-                            welcomeStatus.className = 'voice-status voice-ready';
-                        };
-                        await audio.play();
-                    }
-                } else {
-                    alert('먼저 첫인사 화면 음성 파일을 업로드해주세요.');
-                }
-            } catch (error) {
-                console.error('음성 테스트 실패:', error);
-                alert('음성 테스트에 실패했습니다: ' + error.message);
-            }
-        }AudioFiles.language.url);
+                // 언어선택 화면 음성으로 테스트
+                if (koreanAudioFiles.language.url) {
+                    const languageStatus = document.getElementById('koreanLanguageStatus');
+                    languageStatus.textContent = '음성 테스트 중...';
+                    languageStatus.className = 'voice-status voice-playing';
+                    
+                    const audio = new Audio(koreanAudioFiles.language.url);
                     audio.onended = () => {
                         languageStatus.textContent = '음성 파일 준비됨';
                         languageStatus.className = 'voice-status voice-ready';
@@ -1771,16 +1710,6 @@
             } else {
                 document.getElementById('teacherAccessBtn').style.display = 'none';
             }
-        }
-        
-        // 언어 선택 화면으로 이동
-        function goToLanguageScreen() {
-            goToScreen('languageScreen');
-            
-            // 언어 선택 음성 안내 (0.5초 후)
-            setTimeout(() => {
-                playVoiceGuide('language', 'ko');
-            }, 500);
         }
         
         // 1단계: 언어 선택
@@ -1964,18 +1893,21 @@
                 // 종료 화면으로 이동
                 goToScreen('endScreen');
                 
-                // 종료 화면 음성 안내 및 완료 후 처리
+                // 종료 화면 음성 안내 및 완료 대기
                 const voiceLang = selectedLanguageCode.split('-')[0];
                 setTimeout(async () => {
                     try {
+                        // 음성 재생 시작
                         await playVoiceGuideAndWait('end', voiceLang);
-                        // 음성 완료 후 1초 대기 후 첫 화면으로
+                        
+                        // 음성이 완료되면 첫 화면으로 이동
                         setTimeout(() => {
                             resetProgram();
-                        }, 1000);
+                        }, 1000); // 1초 여유시간
+                        
                     } catch (error) {
                         console.error('종료 음성 재생 실패:', error);
-                        // 음성 실패해도 3초 후 첫 화면으로
+                        // 음성 실패해도 3초 후 리셋
                         setTimeout(() => {
                             resetProgram();
                         }, 3000);
@@ -2547,27 +2479,7 @@
             
             document.getElementById('timeDisplay').textContent = '00:00';
             
-            goToScreen('welcomeScreen');
-            
-            // 첫 화면 음성 안내 (3초 후, 태블릿 최적화)
-            setTimeout(() => {
-                // 사용자 상호작용 후 음성 재생 (태블릿 정책 준수)
-                document.addEventListener('click', function resetClick() {
-                    playVoiceGuide('welcome', 'ko');
-                    document.removeEventListener('click', resetClick);
-                }, { once: true });
-                
-                document.addEventListener('touchstart', function resetTouch() {
-                    playVoiceGuide('welcome', 'ko');
-                    document.removeEventListener('touchstart', resetTouch);
-                }, { once: true });
-                
-                // PC에서는 바로 재생 시도
-                playVoiceGuide('welcome', 'ko').catch(() => {
-                    // 실패하면 첫 클릭/터치 시 재생되도록 대기
-                    console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
-                });
-            }, 3000);
+            goToScreen('welcomeScreen'); // 첫 화면으로 이동 (음성 없음)
         }
         
         // 기록 새로고침 (실시간 동기화)
