@@ -79,6 +79,26 @@
             animation: bounce 2s ease-in-out infinite;
             display: inline-block;
             text-shadow: 0 5px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .koala-character:hover {
+            transform: scale(1.1);
+            text-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+        
+        .koala-character.clickable {
+            animation: bounce 2s ease-in-out infinite, pulse-glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { 
+                filter: drop-shadow(0 0 5px #a8e6cf);
+            }
+            50% { 
+                filter: drop-shadow(0 0 15px #4ecdc4) drop-shadow(0 0 25px #2d8a57);
+            }
         }
         
         @keyframes bounce {
@@ -624,10 +644,10 @@
 
         <!-- 1단계: 언어 선택 -->
         <div class="screen active" id="languageScreen">
-            <div class="koala-character">🐨</div>
+            <div class="koala-character clickable" onclick="startVoiceGuide()" id="koalaLanguage">🐨</div>
             <h1>안녕! 나는 코알라야!</h1>
-            <div class="speech-bubble">
-                어떤 언어로 이야기할까?
+            <div class="speech-bubble" id="languageSpeechBubble">
+                코알라를 터치해서 시작해줘!
             </div>
             <div class="language-grid">
                 <button class="language-option" onclick="selectLanguage('ko-KR', '한국어')">
@@ -916,7 +936,7 @@
         };
         
         let currentAudio = null;
-        let hasPlayedInitialVoice = false; // 첫 음성 재생 여부 추적
+        let isVoiceStarted = false; // 음성이 시작되었는지 추적
         let voiceSettings = {
             ttsApiKey: localStorage.getItem('ttsApiKey') || '',
             koreanAudioData: {
@@ -928,21 +948,6 @@
             }
         };
         
-        // 첫 화면에서 코알라 터치 시 음성 시작
-        function startVoiceGuide() {
-            if (!hasPlayedInitialVoice) {
-                hasPlayedInitialVoice = true;
-                
-                // 터치 안내 메시지 제거
-                const koalaElement = document.querySelector('.koala-touchable');
-                if (koalaElement) {
-                    koalaElement.classList.remove('koala-touchable');
-                }
-                
-                // 음성 재생
-                playVoiceGuide('language', 'ko');
-            }
-        }
         // 화면별 안내 메시지
         const voiceMessages = {
             ko: {
@@ -1197,7 +1202,24 @@
             }
         }
         
-        // API 설정
+        // 첫 화면 코알라 터치 시 음성 시작
+        function startVoiceGuide() {
+            if (isVoiceStarted) return; // 이미 시작되었으면 중복 실행 방지
+            
+            isVoiceStarted = true;
+            
+            // 코알라 애니메이션 변경
+            const koala = document.getElementById('koalaLanguage');
+            koala.classList.remove('clickable');
+            koala.style.cursor = 'default';
+            
+            // 말풍선 내용 변경
+            const speechBubble = document.getElementById('languageSpeechBubble');
+            speechBubble.textContent = '어떤 언어로 이야기할까?';
+            
+            // 음성 재생
+            playVoiceGuide('language', 'ko');
+        }
         let apiSettings = {
             speechApiKey: localStorage.getItem('speechApiKey') || '',
             translateApiKey: localStorage.getItem('translateApiKey') || '',
@@ -1264,8 +1286,9 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 첫 화면에서는 코알라 터치로 음성 시작
-            hasPlayedInitialVoice = false;
+            // 첫 화면 초기화 (자동 음성 재생 제거)
+            isVoiceStarted = false;
+        });
         });
         
         // 음성 안내 재생 (태블릿 최적화)
@@ -1283,22 +1306,23 @@
                     currentAudio = new Audio(koreanAudioFiles[screen].url);
                     currentAudio.preload = 'auto';
                     
-                    // 자동 재생 시도
-                    try {
-                        await currentAudio.play();
-                    } catch (error) {
-                        // 자동 재생 실패 시 사용자 상호작용 대기
-                        console.log('자동 재생 실패, 사용자 상호작용 대기:', error);
-                        document.addEventListener('click', function autoPlayClick() {
-                            currentAudio.play().catch(console.error);
-                            document.removeEventListener('click', autoPlayClick);
-                        }, { once: true });
-                        
-                        document.addEventListener('touchstart', function autoPlayTouch() {
-                            currentAudio.play().catch(console.error);
-                            document.removeEventListener('touchstart', autoPlayTouch);
-                        }, { once: true });
+                    // 종료 화면인 경우 음성 완료 후 자동 복귀 설정
+                    if (screen === 'end') {
+                        currentAudio.addEventListener('ended', () => {
+                            setTimeout(() => {
+                                resetProgram();
+                            }, 1000); // 1초 여유를 두고 복귀
+                        });
                     }
+                    
+                    // 태블릿에서 음성 재생 문제 해결
+                    currentAudio.addEventListener('canplaythrough', () => {
+                        currentAudio.play().catch(error => {
+                            console.error('한국어 음성 재생 실패:', error);
+                        });
+                    });
+                    
+                    currentAudio.load(); // 미리 로드
                     
                 } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
                     // 다른 언어: 캐시된 TTS 또는 새로 생성
@@ -1321,6 +1345,15 @@
                         
                         currentAudio = new Audio(audioUrl);
                         currentAudio.preload = 'auto';
+                        
+                        // 종료 화면인 경우 음성 완료 후 자동 복귀 설정
+                        if (screen === 'end') {
+                            currentAudio.addEventListener('ended', () => {
+                                setTimeout(() => {
+                                    resetProgram();
+                                }, 1000); // 1초 여유를 두고 복귀
+                            });
+                        }
                         
                         // 태블릿 최적화: 짧은 딜레이 후 재생
                         setTimeout(async () => {
@@ -1345,101 +1378,7 @@
             }
         }
         
-        // 콜백 기능이 있는 음성 안내 재생
-        async function playVoiceGuideWithCallback(screen, language, callback) {
-            // 이전 음성 정지
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
-                currentAudio = null;
-            }
-            
-            try {
-                if (language === 'ko' && koreanAudioFiles[screen].url) {
-                    // 한국어: 업로드된 클로바 더빙 파일 재생
-                    currentAudio = new Audio(koreanAudioFiles[screen].url);
-                    currentAudio.preload = 'auto';
-                    
-                    // 음성 종료 시 콜백 실행
-                    currentAudio.addEventListener('ended', () => {
-                        if (callback) callback();
-                    });
-                    
-                    // 자동 재생 시도
-                    try {
-                        await currentAudio.play();
-                    } catch (error) {
-                        // 자동 재생 실패 시 사용자 상호작용 대기
-                        console.log('자동 재생 실패, 사용자 상호작용 대기:', error);
-                        document.addEventListener('click', function autoPlayClick() {
-                            currentAudio.play().catch(console.error);
-                            document.removeEventListener('click', autoPlayClick);
-                        }, { once: true });
-                        
-                        document.addEventListener('touchstart', function autoPlayTouch() {
-                            currentAudio.play().catch(console.error);
-                            document.removeEventListener('touchstart', autoPlayTouch);
-                        }, { once: true });
-                    }
-                    
-                } else if (language !== 'ko' && voiceSettings.ttsApiKey) {
-                    // 다른 언어: 캐시된 TTS 또는 새로 생성
-                    const message = voiceMessages[language][screen];
-                    if (message) {
-                        // 캐시 키 생성
-                        const cacheKey = `tts_${language}_${screen}`;
-                        let audioUrl = sessionStorage.getItem(cacheKey);
-                        
-                        if (!audioUrl) {
-                            // 캐시에 없으면 새로 생성
-                            try {
-                                audioUrl = await generateTTSAudio(message, language);
-                                sessionStorage.setItem(cacheKey, audioUrl);
-                            } catch (error) {
-                                console.error('TTS 생성 실패:', error);
-                                if (callback) callback(); // TTS 실패 시에도 콜백 실행
-                                return;
-                            }
-                        }
-                        
-                        currentAudio = new Audio(audioUrl);
-                        currentAudio.preload = 'auto';
-                        
-                        // 음성 종료 시 콜백 실행
-                        currentAudio.addEventListener('ended', () => {
-                            if (callback) callback();
-                        });
-                        
-                        // 태블릿 최적화: 짧은 딜레이 후 재생
-                        setTimeout(async () => {
-                            try {
-                                await currentAudio.play();
-                            } catch (error) {
-                                console.error('TTS 음성 재생 실패:', error);
-                                // 재시도
-                                setTimeout(async () => {
-                                    try {
-                                        await currentAudio.play();
-                                    } catch (retryError) {
-                                        console.error('TTS 음성 재시도 실패:', retryError);
-                                        if (callback) callback(); // 재시도 실패 시에도 콜백 실행
-                                    }
-                                }, 100);
-                            }
-                        }, 200);
-                    } else {
-                        // 메시지가 없으면 바로 콜백 실행
-                        if (callback) callback();
-                    }
-                } else {
-                    // 음성 파일이나 API가 없으면 바로 콜백 실행
-                    if (callback) callback();
-                }
-            } catch (error) {
-                console.error('음성 재생 실패:', error);
-                if (callback) callback(); // 오류 시에도 콜백 실행
-            }
-        }
+        // Google TTS API 호출 (태블릿 최적화)
         async function generateTTSAudio(text, language) {
             if (!voiceSettings.ttsApiKey) {
                 throw new Error('TTS API key not configured');
@@ -1865,21 +1804,11 @@
                 // 종료 화면으로 이동
                 goToScreen('endScreen');
                 
-                // 종료 화면 음성 안내 및 자동 리셋
+                // 종료 화면 음성 안내 (자동 복귀 포함)
                 const voiceLang = selectedLanguageCode.split('-')[0];
                 setTimeout(() => {
-                    playVoiceGuideWithCallback('end', voiceLang, () => {
-                        // 음성이 끝나면 3초 후 자동으로 처음 화면으로
-                        setTimeout(() => {
-                            resetProgram();
-                        }, 3000);
-                    });
+                    playVoiceGuide('end', voiceLang);
                 }, 500);
-                
-                // 3초 후 자동으로 처음 화면으로
-                setTimeout(() => {
-                    resetProgram();
-                }, 3000);
                 
             } catch (error) {
                 showError('처리 중 문제가 생겼어요: ' + error.message);
@@ -2444,20 +2373,20 @@
             // TTS 캐시 정리
             sessionStorage.clear();
             
-            // 첫 음성 재생 상태 리셋
-            hasPlayedInitialVoice = false;
+            // 음성 시작 상태 리셋
+            isVoiceStarted = false;
             
             document.getElementById('timeDisplay').textContent = '00:00';
             
             goToScreen('languageScreen');
             
-            // 코알라 터치 안내 다시 표시
-            setTimeout(() => {
-                const koalaElement = document.querySelector('.koala-character');
-                if (koalaElement && !hasPlayedInitialVoice) {
-                    koalaElement.classList.add('koala-touchable');
-                }
-            }, 100);
+            // 첫 화면 상태 복원
+            const koala = document.getElementById('koalaLanguage');
+            const speechBubble = document.getElementById('languageSpeechBubble');
+            
+            koala.classList.add('clickable');
+            koala.style.cursor = 'pointer';
+            speechBubble.textContent = '코알라를 터치해서 시작해줘!';
         }
         
         // 기록 새로고침 (실시간 동기화)
