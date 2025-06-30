@@ -73,108 +73,6 @@
             display: block;
         }
         
-        .koala-touchable {
-            font-size: 120px;
-            margin: 20px 0;
-            animation: bounce 2s ease-in-out infinite;
-            display: inline-block;
-            text-shadow: 0 5px 10px rgba(0,0,0,0.1);
-            cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            transition: all 0.3s ease;
-            padding: 20px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            border: 3px dashed #a8e6cf;
-            position: relative;
-        }
-
-        .koala-touchable:hover {
-            transform: scale(1.1);
-            background: rgba(168, 230, 207, 0.2);
-            border-color: #2d8a57;
-        }
-
-        .koala-touchable:active {
-            transform: scale(0.95);
-            background: rgba(168, 230, 207, 0.3);
-        }
-
-        .koala-touchable::after {
-            content: 'TAP';
-            position: absolute;
-            bottom: -30px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 14px;
-            color: #2d8a57;
-            font-weight: bold;
-            animation: blink 1.5s ease-in-out infinite;
-        }
-
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.3; }
-        }
-
-        /* 태블릿 터치 최적화 */
-        @media (max-width: 768px) {
-            .koala-touchable {
-                font-size: 140px;
-                padding: 30px;
-                margin: 30px 0;
-            }
-            
-            .koala-touchable::after {
-                font-size: 16px;
-                bottom: -35px;
-            }
-        }
-
-        /* 터치 피드백 강화 */
-        .koala-touchable:focus {
-            outline: 3px solid #4ecdc4;
-            outline-offset: 5px;
-        }
-
-        /* 터치 영역 확대 */
-        .language-option, .name-option, .mood-option, .nav-button {
-            min-height: 60px;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: rgba(168, 230, 207, 0.3);
-        }
-
-        .record-button {
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: rgba(255, 107, 107, 0.3);
-        }
-
-        /* 태블릿에서 버튼 크기 증가 */
-        @media (max-width: 768px) {
-            .language-option, .name-option {
-                padding: 30px 20px;
-                font-size: 20px;
-            }
-            
-            .mood-option {
-                padding: 20px 12px;
-                font-size: 16px;
-            }
-            
-            .mood-emoji {
-                font-size: 40px;
-            }
-            
-            .nav-button {
-                padding: 18px 30px;
-                font-size: 18px;
-                margin: 8px;
-            }
-        }
-
         .koala-character {
             font-size: 50px;
             margin: 10px 0;
@@ -726,15 +624,8 @@
 
         <!-- 1단계: 첫 인사 화면 -->
         <div class="screen active" id="welcomeScreen">
-            <div class="koala-touchable" 
-                 onclick="goToLanguageScreen()" 
-                 ontouchstart="this.style.transform='scale(0.9)'" 
-                 ontouchend="this.style.transform='scale(1)';goToLanguageScreen()"
-                 tabindex="0"
-                 role="button"
-                 aria-label="코알라를 터치하여 시작하기">
-                🐨
-            </div>
+            <div class="koala-character koala-happy koala-clickable" 
+                 id="welcomeKoala">🐨</div>
             <h1>안녕! 나는 코알라야!</h1>
             <div class="speech-bubble">
                 코알라를 터치해서 시작해보자!
@@ -1379,51 +1270,22 @@
             // 로컬 기록 불러오기
             loadRecordsFromLocal();
             
-            // 태블릿 터치 이벤트 최적화
+            // 첫 화면 음성 안내 (3초 후)
             setTimeout(() => {
-                const koalaTouchable = document.querySelector('.koala-touchable');
-                if (koalaTouchable) {
-                    // 터치 시작
-                    koalaTouchable.addEventListener('touchstart', function(e) {
-                        e.preventDefault();
-                        this.style.transform = 'scale(0.9)';
-                        this.style.background = 'rgba(168, 230, 207, 0.4)';
-                    }, { passive: false });
-                    
-                    // 터치 종료
-                    koalaTouchable.addEventListener('touchend', function(e) {
-                        e.preventDefault();
-                        setTimeout(() => {
-                            this.style.transform = 'scale(1)';
-                            this.style.background = 'rgba(255, 255, 255, 0.1)';
-                            goToLanguageScreen();
-                        }, 100);
-                    }, { passive: false });
-                    
-                    // 키보드 접근성
-                    koalaTouchable.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            goToLanguageScreen();
-                        }
-                    });
-                }
-            }, 100);
-            
-            // 첫 화면 음성 안내 (3초 후, 태블릿 최적화)
-            setTimeout(() => {
-                // 사용자 상호작용 후 음성 재생 (태블릿 정책 준수)
-                document.addEventListener('click', function firstClick() {
-                    playVoiceGuide('welcome', 'ko');
-                    document.removeEventListener('click', firstClick);
-                }, { once: true });
-                
-                // PC에서는 바로 재생 시도
                 playVoiceGuide('welcome', 'ko').catch(() => {
-                    // 실패하면 첫 클릭 시 재생되도록 대기
-                    console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
+                    console.log('자동 재생 실패');
                 });
             }, 3000);
+        });
+        
+        // 페이지 로드 완료 후 이벤트 추가
+        document.addEventListener('DOMContentLoaded', function() {
+            const welcomeKoala = document.getElementById('welcomeKoala');
+            if (welcomeKoala) {
+                welcomeKoala.addEventListener('click', goToLanguageScreen);
+                welcomeKoala.addEventListener('touchend', goToLanguageScreen);
+            }
+        });
         });
         
         // 음성 안내 재생하고 완료까지 대기
@@ -1911,22 +1773,8 @@
             }
         }
         
-        // 언어 선택 화면으로 이동 (터치 최적화)
+        // 언어 선택 화면으로 이동
         function goToLanguageScreen() {
-            // 중복 실행 방지
-            if (document.getElementById('languageScreen').classList.contains('active')) {
-                return;
-            }
-            
-            // 터치 피드백
-            const koala = document.querySelector('.koala-touchable');
-            if (koala) {
-                koala.style.background = 'rgba(168, 230, 207, 0.5)';
-                setTimeout(() => {
-                    koala.style.background = 'rgba(255, 255, 255, 0.1)';
-                }, 200);
-            }
-            
             goToScreen('languageScreen');
             
             // 언어 선택 음성 안내 (0.5초 후)
@@ -2709,9 +2557,14 @@
                     document.removeEventListener('click', resetClick);
                 }, { once: true });
                 
+                document.addEventListener('touchstart', function resetTouch() {
+                    playVoiceGuide('welcome', 'ko');
+                    document.removeEventListener('touchstart', resetTouch);
+                }, { once: true });
+                
                 // PC에서는 바로 재생 시도
                 playVoiceGuide('welcome', 'ko').catch(() => {
-                    // 실패하면 첫 클릭 시 재생되도록 대기
+                    // 실패하면 첫 클릭/터치 시 재생되도록 대기
                     console.log('자동 재생 실패, 사용자 상호작용 대기 중...');
                 });
             }, 3000);
