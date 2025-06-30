@@ -496,6 +496,7 @@
             border: 2px solid #fff;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             z-index: 1000;
+            display: block;
         }
         
         .teacher-access-btn:hover {
@@ -624,7 +625,7 @@
 
         <!-- 1단계: 코알라 터치 화면 -->
         <div class="screen active" id="welcomeScreen">
-            <div class="koala-character koala-happy" onclick="goToLanguageScreen()" style="cursor: pointer; transform: scale(1.2);">🐨</div>
+            <div class="koala-character koala-happy" onclick="goToLanguageScreen()" style="cursor: pointer; transform: scale(1.2); transition: transform 0.3s ease;">🐨</div>
             <h1>안녕!</h1>
             <div class="speech-bubble">
                 코알라를 터치해서 시작해줘!
@@ -1193,39 +1194,12 @@
             }
         }
         
-        // 화면 전환 함수
-        function goToScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
-            });
-            document.getElementById(screenId).classList.add('active');
-            
-            // 첫 번째 화면(코알라 터치)에서만 교사 접근 버튼 표시
-            if (screenId === 'welcomeScreen') {
-                document.getElementById('teacherAccessBtn').style.display = 'block';
-            } else {
-                document.getElementById('teacherAccessBtn').style.display = 'none';
-            }
-        }
-        
-        // 코알라 터치 후 언어선택 화면으로
-        function goToLanguageScreen() {
-            goToScreen('languageScreen');
-            
-            // 언어선택 화면 진입 시 음성 안내 (한국어)
-            setTimeout(() => {
-                playVoiceGuide('language', 'ko');
-            }, 500);
-        }
-        
-        // 교사 화면으로 이동
-        function goToTeacherScreen() {
-            updateTeacherScreen();
-            goToScreen('teacherScreen');
-            document.getElementById('teacherAccessBtn').style.display = 'none';
-        }
-        
-        // 녹음 파일 다운로드
+        // API 설정
+        let apiSettings = {
+            speechApiKey: localStorage.getItem('speechApiKey') || '',
+            translateApiKey: localStorage.getItem('translateApiKey') || '',
+            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
+        };
         
         // 페이지 로드 시 설정 복원 및 자동 초기화
         window.addEventListener('load', () => {
@@ -1288,10 +1262,24 @@
             loadRecordsFromLocal();
             
             // 첫 화면에서는 음성 안내 없음 (코알라 터치 대기)
+            console.log('페이지 로드 완료 - 코알라 터치 대기중');
         });
         });
         
-        // 음성 안내 재생 (태블릿 최적화)
+        // 화면 전환 함수
+        function goToScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            // 첫 번째 화면(웰컴)에서만 교사 접근 버튼 표시
+            if (screenId === 'welcomeScreen') {
+                document.getElementById('teacherAccessBtn').style.display = 'block';
+            } else {
+                document.getElementById('teacherAccessBtn').style.display = 'none';
+            }
+        }
         async function playVoiceGuide(screen, language) {
             // 이전 음성 정지
             if (currentAudio) {
@@ -1680,12 +1668,16 @@
             }
         }
         
-        // API 설정
-        let apiSettings = {
-            speechApiKey: localStorage.getItem('speechApiKey') || '',
-            translateApiKey: localStorage.getItem('translateApiKey') || '',
-            serverUrl: localStorage.getItem('serverUrl') || 'http://localhost:3000/api'
-        };
+        // 코알라 터치 후 언어선택 화면으로
+        function goToLanguageScreen() {
+            console.log('코알라 터치됨 - 언어선택 화면으로 이동');
+            goToScreen('languageScreen');
+            
+            // 언어선택 화면 진입 시 음성 안내 (한국어)
+            setTimeout(() => {
+                playVoiceGuide('language', 'ko');
+            }, 500);
+        }
         
         // 1단계: 언어 선택
         function selectLanguage(langCode, langName) {
@@ -2287,7 +2279,6 @@
         function goToTeacherScreen() {
             updateTeacherScreen();
             goToScreen('teacherScreen');
-            document.getElementById('teacherAccessBtn').style.display = 'none';
         }
         
         // 녹음 파일 다운로드
@@ -2453,7 +2444,23 @@
             goToScreen('welcomeScreen'); // 첫 번째 코알라 터치 화면으로
         }
         
-        // 기록 새로고침 (실시간 동기화)
+        // 디버깅을 위한 테스트 함수들 (개발 중에만 사용)
+        window.testGoToLanguage = function() {
+            console.log('테스트: 언어선택으로 이동');
+            goToLanguageScreen();
+        };
+        
+        window.testGoToTeacher = function() {
+            console.log('테스트: 교사화면으로 이동');
+            goToTeacherScreen();
+        };
+        
+        // 페이지 로드 후 즉시 실행되는 테스트
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드 완료');
+            console.log('welcomeScreen 요소:', document.getElementById('welcomeScreen'));
+            console.log('teacherAccessBtn 요소:', document.getElementById('teacherAccessBtn'));
+        });
         function refreshRecords() {
             if (isFirebaseInitialized) {
                 // 실시간 리스너가 자동으로 업데이트하므로 수동 새로고침은 간단히
