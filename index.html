@@ -1977,6 +1977,8 @@
                         break;
                     case 'endScreen':
                         playVoiceGuide('end');
+                        // 안내음성이 끝나면 처음 화면으로 돌아가기
+                        setupEndScreenReturn();
                         break;
                 }
             }, 500); // 화면 전환 후 0.5초 뒤 음성 재생
@@ -2023,6 +2025,31 @@
             }
         }
         
+        // 종료 화면에서 음성이 끝나면 처음 화면으로 돌아가기
+        function setupEndScreenReturn() {
+            // 현재 음성이 재생 중인지 확인
+            if (currentAudio) {
+                // 음성이 끝나면 처음 화면으로 돌아가기
+                currentAudio.onended = () => {
+                    setTimeout(() => {
+                        resetProgram();
+                    }, 1000); // 음성 종료 후 1초 대기
+                };
+                
+                // 음성 재생 오류 시 대비책 (5초 후 자동 리셋)
+                setTimeout(() => {
+                    if (document.getElementById('endScreen').classList.contains('active')) {
+                        resetProgram();
+                    }
+                }, 5000);
+            } else {
+                // 음성이 없으면 3초 후 처음 화면으로
+                setTimeout(() => {
+                    resetProgram();
+                }, 3000);
+            }
+        }
+
         // 코알라 터치 이벤트
         function setupKoalaTouch() {
             const koalaTouch = document.getElementById('koalaTouch');
@@ -2268,11 +2295,6 @@
             
             // 종료 화면으로 이동
             goToScreen('endScreen');
-            
-            // 3초 후 자동으로 처음 화면으로
-            setTimeout(() => {
-                resetProgram();
-            }, 3000);
         }
         
         // 로컬 저장소에 기록 저장 (개선된 버전)
@@ -2529,7 +2551,7 @@
                 
                 // 헤더 행
                 excelData.push([
-                    '번호', '날짜', '시간', '학생명', '언어', '기분', '원본 내용', '한국어 번역', '기록 ID'
+                    '번호', '날짜', '시간', '학생명', '언어', '기분', '원본 내용', '한국어 번역'
                 ]);
                 
                 // 최신순 정렬
@@ -2548,8 +2570,7 @@
                         record.language,
                         `${record.mood} ${record.moodEmoji}`,
                         record.transcript || '처리 중',
-                        record.translation || (record.languageCode === 'ko-KR' ? '(번역 불필요)' : '처리 중'),
-                        record.id
+                        record.translation || (record.languageCode === 'ko-KR' ? '(번역 불필요)' : '처리 중')
                     ]);
                 });
                 
@@ -2564,8 +2585,7 @@
                     {wch: 10},  // 언어
                     {wch: 12},  // 기분
                     {wch: 40},  // 원본 내용
-                    {wch: 40},  // 번역
-                    {wch: 15}   // ID
+                    {wch: 40}   // 번역
                 ];
                 
                 const workbook = XLSX.utils.book_new();
