@@ -1084,16 +1084,25 @@
                 type => voiceSettings.koreanAudioData[type]
             );
             
-            if (availableTypes.length === 0) {
-                alert('먼저 음성 파일을 업로드해주세요.');
+            if (availableTypes.length > 0) {
+                const testType = availableTypes[0];
+                alert(`한국어 ${testType} 화면용 음성을 테스트 재생합니다.`);
+                playVoiceGuide(testType);
                 return;
             }
             
-            const testType = availableTypes[0];
-            alert(`${testType} 화면용 음성을 테스트 재생합니다.`);
-            
-            // 테스트 재생
-            playVoiceGuide(testType);
+            // 한국어 음성이 없으면 TTS 테스트
+            if (voiceSettings.ttsApiKey) {
+                alert('Google TTS를 테스트합니다.\n러시아어 음성을 재생합니다.');
+                
+                // 임시로 러시아어 설정하여 테스트
+                const originalLang = selectedLanguageCode;
+                selectedLanguageCode = 'ru-RU';
+                playVoiceGuide('language');
+                selectedLanguageCode = originalLang;
+            } else {
+                alert('음성 테스트를 위해서는:\n1. 한국어 음성 파일 업로드 또는\n2. Google TTS API 키 설정이 필요합니다.');
+            }
         }
 
         function saveVoiceSettings() {
@@ -1543,33 +1552,222 @@
             }
         }
         
-        // 음성 재생 함수
-        function playVoiceGuide(screenType) {
+        // 음성 재생 함수 (다국어 지원)
+        async function playVoiceGuide(screenType) {
             // 현재 재생 중인 음성이 있으면 정지
             if (currentAudio) {
                 currentAudio.pause();
                 currentAudio = null;
             }
 
-            // 한국어 음성 파일이 있는지 확인
-            const audioData = voiceSettings.koreanAudioData[screenType];
-            if (audioData) {
-                try {
-                    currentAudio = new Audio(audioData);
-                    currentAudio.volume = 0.7; // 볼륨 설정
-                    currentAudio.play().catch(error => {
-                        console.log('음성 재생 실패 (사용자 상호작용 필요):', error);
-                    });
-                    console.log(`${screenType} 화면 음성 재생 시작`);
-                } catch (error) {
-                    console.error('음성 재생 오류:', error);
+            // 선택된 언어가 한국어인 경우 업로드된 음성 파일 사용
+            if (!selectedLanguageCode || selectedLanguageCode === 'ko-KR') {
+                const audioData = voiceSettings.koreanAudioData[screenType];
+                if (audioData) {
+                    try {
+                        currentAudio = new Audio(audioData);
+                        currentAudio.volume = 0.7;
+                        currentAudio.play().catch(error => {
+                            console.log('음성 재생 실패 (사용자 상호작용 필요):', error);
+                        });
+                        console.log(`한국어 ${screenType} 화면 음성 재생 시작`);
+                        return;
+                    } catch (error) {
+                        console.error('한국어 음성 재생 오류:', error);
+                    }
                 }
-            } else {
-                console.log(`${screenType} 화면용 음성 파일이 없습니다.`);
+            }
+
+            // 외국어인 경우 Google TTS 사용
+            if (selectedLanguageCode && selectedLanguageCode !== 'ko-KR') {
+                await playTTSVoice(screenType, selectedLanguageCode);
             }
         }
 
-        // 화면 전환 함수
+        // Google TTS로 음성 생성 및 재생
+        async function playTTSVoice(screenType, languageCode) {
+            if (!voiceSettings.ttsApiKey) {
+                console.log('TTS API 키가 설정되지 않음');
+                return;
+            }
+
+            try {
+                const language = languageCode === 'ru-RU' ? 'ru' : 'vi';
+                const message = voiceMessages[language][screenType];
+                
+                if (!message) {
+                    console.log(`${language} 언어의 ${screenType} 메시지가 없음`);
+                    return;
+                }
+
+                console.log(`TTS 요청: ${language} - ${message}`);
+
+                // Google TTS API 호출
+                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${voiceSettings.ttsApiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        input: { text: message },
+                        voice: {
+                            languageCode: languageCode,
+                            name: getVoiceName(languageCode),
+                            ssmlGender: 'FEMALE'
+                        },
+                        audioConfig: {
+                            audioEncoding: 'MP3',
+                            speakingRate: 0.9,
+                            pitch: 2.0,
+                            volumeGainDb: 0.0
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`TTS API 오류: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.audioContent) {
+                    // Base64 오디오를 Blob으로 변환하여 재생
+                    const audioBlob = base64ToBlob(`data:audio/mp3;base64,${data.audioContent}`);
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    currentAudio = new Audio(audioUrl);
+                    currentAudio.volume = 0.7;
+                    
+                    currentAudio.onended = () => {
+                        URL.revokeObjectURL(audioUrl); // 메모리 정리
+                    };
+                    
+                    await currentAudio.play();
+                    console.log(`${language} TTS 음성 재생 시작`);
+                } else {
+                    throw new Error('TTS API에서 오디오 데이터를 받지 못함');
+                }
+
+            } catch (error) {
+                console.error('TTS 음성 재생 오류:', error);
+                
+                // TTS 실패 시 사용자에게 알림 (한 번만)
+                if (!window.ttsErrorShown) {
+                    window.ttsErrorShown = true;
+                    setTimeout(() => {
+                        alert('음성 안내를 위해 Google TTS API 키가 필요합니다.\n교사 화면에서 설정해주세요.');
+                    }, 1000);
+                }
+            }
+        }
+
+        // 언어별 음성 이름 설정
+        function getVoiceName(languageCode) {
+            const voiceNames = {
+                'ru-RU': 'ru-RU-Wavenet-A', // 러시아어 여성 음성
+                'vi-VN': 'vi-VN-Wavenet-A'  // 베트남어 여성 음성
+            };
+            return voiceNames[languageCode] || languageCode + '-Standard-A';
+        }
+
+        // 언어별 화면 텍스트 업데이트
+        function updateScreenTexts(languageCode) {
+            const language = getLanguageKey(languageCode);
+            
+            // 화면별 텍스트 업데이트
+            const textMappings = {
+                'languageScreen': {
+                    title: voiceMessages[language].language,
+                    bubble: getLanguageScreenBubbleText(language)
+                },
+                'nameScreen': {
+                    title: getNameScreenTitle(language),
+                    bubble: getNameScreenBubbleText(language)
+                },
+                'moodScreen': {
+                    title: getMoodScreenTitle(language),
+                    bubble: voiceMessages[language].mood
+                },
+                'recordScreen': {
+                    title: getRecordScreenTitle(language),
+                    bubble: voiceMessages[language].record
+                },
+                'endScreen': {
+                    title: getEndScreenTitle(language),
+                    bubble: voiceMessages[language].end
+                }
+            };
+
+            // 실제 DOM 업데이트는 화면 전환 시에 수행
+            window.currentScreenTexts = textMappings;
+        }
+
+        // 언어 키 변환 함수
+        function getLanguageKey(languageCode) {
+            const mapping = {
+                'ko-KR': 'ko',
+                'ru-RU': 'ru', 
+                'vi-VN': 'vi'
+            };
+            return mapping[languageCode] || 'ko';
+        }
+
+        // 언어별 텍스트 함수들
+        function getLanguageScreenBubbleText(lang) {
+            const texts = {
+                'ko': '어떤 언어로 이야기할까?',
+                'ru': 'На каком языке будем говорить?',
+                'vi': 'Chúng ta sẽ nói bằng ngôn ngữ nào?'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        function getNameScreenTitle(lang) {
+            const texts = {
+                'ko': '좋아! 이제 이름을 알려줘!',
+                'ru': 'Отлично! Теперь скажи мне свое имя!',
+                'vi': 'Tuyệt vời! Bây giờ hãy cho tôi biết tên của bạn!'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        function getNameScreenBubbleText(lang) {
+            const texts = {
+                'ko': '네 이름을 선택해줘!',
+                'ru': 'Выбери свое имя!',
+                'vi': 'Hãy chọn tên của bạn!'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        function getMoodScreenTitle(lang) {
+            const texts = {
+                'ko': '안녕!',
+                'ru': 'Привет!',
+                'vi': 'Xin chào!'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        function getRecordScreenTitle(lang) {
+            const texts = {
+                'ko': '코알라에게 이야기해줘!',
+                'ru': 'Расскажи коале!',
+                'vi': 'Hãy kể cho koala nghe!'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        function getEndScreenTitle(lang) {
+            const texts = {
+                'ko': '고마워!',
+                'ru': 'Спасибо!',
+                'vi': 'Cảm ơn bạn!'
+            };
+            return texts[lang] || texts['ko'];
+        }
+
+        // 화면 전환 함수 (다국어 지원)
         function goToScreen(screenId) {
             console.log('화면 전환:', screenId);
             document.querySelectorAll('.screen').forEach(screen => {
@@ -1583,6 +1781,11 @@
                 teacherBtn.style.display = 'block';
             } else {
                 teacherBtn.style.display = 'none';
+            }
+
+            // 선택된 언어에 따라 화면 텍스트 업데이트
+            if (selectedLanguageCode && window.currentScreenTexts) {
+                updateScreenText(screenId);
             }
 
             // 화면별 음성 안내 재생
@@ -1606,6 +1809,47 @@
                 }
             }, 500); // 화면 전환 후 0.5초 뒤 음성 재생
         }
+
+        // 개별 화면 텍스트 업데이트
+        function updateScreenText(screenId) {
+            if (!window.currentScreenTexts || !window.currentScreenTexts[screenId]) {
+                return;
+            }
+
+            const texts = window.currentScreenTexts[screenId];
+            
+            try {
+                switch(screenId) {
+                    case 'nameScreen':
+                        const nameTitle = document.querySelector('#nameScreen h2');
+                        const nameBubble = document.querySelector('#nameScreen .speech-bubble');
+                        if (nameTitle) nameTitle.textContent = texts.title;
+                        if (nameBubble) nameBubble.textContent = texts.bubble;
+                        break;
+                        
+                    case 'moodScreen':
+                        const moodBubble = document.querySelector('#moodScreen .speech-bubble');
+                        if (moodBubble) moodBubble.textContent = texts.bubble;
+                        break;
+                        
+                    case 'recordScreen':
+                        const recordTitle = document.querySelector('#recordScreen h2');
+                        const recordBubble = document.querySelector('#recordScreen .speech-bubble');
+                        if (recordTitle) recordTitle.textContent = texts.title;
+                        if (recordBubble) recordBubble.textContent = texts.bubble;
+                        break;
+                        
+                    case 'endScreen':
+                        const endTitle = document.querySelector('#endScreen h2');
+                        const endBubble = document.querySelector('#endScreen .speech-bubble');
+                        if (endTitle) endTitle.textContent = texts.title;
+                        if (endBubble) endBubble.textContent = texts.bubble;
+                        break;
+                }
+            } catch (error) {
+                console.error('화면 텍스트 업데이트 오류:', error);
+            }
+        }
         
         // 코알라 터치 이벤트
         function setupKoalaTouch() {
@@ -1628,27 +1872,42 @@
             dummyAudio.play().catch(() => {});
         }
         
-        // 언어 선택 이벤트
+        // 언어 선택 이벤트 (개선된 버전)
         function setupLanguageSelection() {
             const languageOptions = document.querySelectorAll('.language-option');
             languageOptions.forEach(option => {
                 option.addEventListener('click', function() {
                     selectedLanguageCode = this.dataset.lang;
                     selectedLanguage = this.dataset.name;
-                    console.log('언어 선택:', selectedLanguage);
+                    console.log('언어 선택:', selectedLanguage, selectedLanguageCode);
+                    
+                    // 선택된 언어에 따라 화면 텍스트 설정
+                    updateScreenTexts(selectedLanguageCode);
+                    
                     goToScreen('nameScreen');
                 });
             });
         }
         
-        // 이름 선택 이벤트
+        // 이름 선택 이벤트 (개선된 버전)
         function setupNameSelection() {
             const nameOptions = document.querySelectorAll('.name-option');
             nameOptions.forEach(option => {
                 option.addEventListener('click', function() {
                     selectedName = this.dataset.name;
                     console.log('이름 선택:', selectedName);
-                    document.getElementById('greetingText').textContent = `안녕 ${selectedName}!`;
+                    
+                    // 선택된 언어에 따라 인사말 설정
+                    const language = getLanguageKey(selectedLanguageCode);
+                    const greetingTexts = {
+                        'ko': `안녕 ${selectedName}!`,
+                        'ru': `Привет, ${selectedName}!`,
+                        'vi': `Xin chào ${selectedName}!`
+                    };
+                    
+                    const greetingText = greetingTexts[language] || greetingTexts['ko'];
+                    document.getElementById('greetingText').textContent = greetingText;
+                    
                     goToScreen('moodScreen');
                 });
             });
